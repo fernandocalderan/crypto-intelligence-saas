@@ -1,0 +1,21 @@
+{
+  "name": "crypto-intelligence-saas",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "./infra/scripts/dev-local.sh",
+    "dev:web": "npm run dev --workspace @crypto-intel/web",
+    "build:web": "npm run build --workspace @crypto-intel/web",
+    "lint:web": "npm run lint --workspace @crypto-intel/web",
+    "install:api": "./infra/scripts/setup-api.sh",
+    "dev:docker": "docker compose up --build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
+

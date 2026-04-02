@@ -1,0 +1,57 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      INTERNAL_API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-docker}
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/crypto_intelligence
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-your-binance-api-key}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-your-binance-api-secret}
+      BYBIT_API_KEY: ${BYBIT_API_KEY:-your-bybit-api-key}
+      BYBIT_API_SECRET: ${BYBIT_API_SECRET:-your-bybit-api-secret}
+      AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-secret}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-price_starter_placeholder}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-price_pro_placeholder}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crypto_intelligence
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d crypto_intelligence"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

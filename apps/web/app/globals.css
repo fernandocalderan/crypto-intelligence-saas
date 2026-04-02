@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body), sans-serif;
+  background:
+    linear-gradient(180deg, rgba(4, 9, 7, 0.15) 0%, rgba(4, 9, 7, 0.92) 100%),
+    radial-gradient(circle at top, rgba(185, 255, 105, 0.08), transparent 40%),
+    #07110d;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading), sans-serif;
+}
+
+.surface {
+  @apply rounded-4xl border border-white/10 bg-slate/70 backdrop-blur-xl;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 28px 90px rgba(4, 9, 7, 0.45);
+}
+
+.eyebrow {
+  @apply inline-flex items-center rounded-full border border-moss/30 bg-moss/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-moss;
+}
+
+.section-title {
+  @apply text-3xl font-semibold tracking-tight text-ink sm:text-4xl;
+}
+
+.muted {
+  @apply text-sm text-haze sm:text-base;
+}
+
+.grid-lines {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
