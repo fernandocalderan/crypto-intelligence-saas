@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 COPY apps/api /app
+COPY packages/signal-engine /app/packages/signal-engine
 COPY infra/scripts/api-entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
@@ -18,4 +19,3 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 8000
 
 CMD ["/entrypoint.sh"]
-

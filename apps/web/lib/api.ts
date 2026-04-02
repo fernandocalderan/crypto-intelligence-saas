@@ -23,7 +23,62 @@ export type Signal = {
   generated_at: string;
 };
 
-const apiUrl =
+export type SignalFeed = {
+  access_plan: "free" | "pro" | "pro_plus";
+  total_available: number;
+  visible_count: number;
+  has_locked_signals: boolean;
+  signals: Signal[];
+};
+
+export type MarketSnapshot = {
+  symbol: string;
+  name: string;
+  category: string;
+  source: string;
+  timeframe: string;
+  open_price: number;
+  high_price: number;
+  low_price: number;
+  close_price: number;
+  price_usd: number;
+  change_24h: number;
+  volume_24h: number;
+  avg_volume_24h: number;
+  range_high_20d: number;
+  range_low_20d: number;
+  funding_rate: number;
+  funding_zscore: number;
+  open_interest: number;
+  oi_change_24h: number;
+  long_liquidations_1h: number;
+  short_liquidations_1h: number;
+  avg_liquidations_1h: number;
+  momentum_score: number;
+  captured_at: string;
+};
+
+export type UserProfile = {
+  id: number;
+  email: string;
+  plan: "free" | "pro" | "pro_plus";
+  is_active: boolean;
+  subscription_status: string | null;
+  signal_limit: number | null;
+  can_access_all_signals: boolean;
+};
+
+export type SubscriptionStatus = {
+  provider: string;
+  plan: "free" | "pro" | "pro_plus";
+  status: string;
+  checkout_session_id: string | null;
+  stripe_subscription_id: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+};
+
+export const apiUrl =
   process.env.INTERNAL_API_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:8000";
@@ -76,7 +131,7 @@ const fallbackAssets: Asset[] = [
   }
 ];
 
-const fallbackSignals: Signal[] = [
+export const fallbackSignals: Signal[] = [
   {
     id: "sig-btc-volume_spike",
     signal_key: "volume_spike",
@@ -149,10 +204,117 @@ const fallbackSignals: Signal[] = [
   }
 ];
 
-async function fetchWithFallback<T>(path: string, fallback: T): Promise<T> {
+const fallbackSignalFeed: SignalFeed = {
+  access_plan: "free",
+  total_available: fallbackSignals.length,
+  visible_count: 2,
+  has_locked_signals: true,
+  signals: fallbackSignals.slice(0, 2)
+};
+
+const fallbackMarketSnapshots: MarketSnapshot[] = [
+  {
+    symbol: "BTC",
+    name: "Bitcoin",
+    category: "Layer 1",
+    source: "mock",
+    timeframe: "1D",
+    open_price: 66171.81,
+    high_price: 69500,
+    low_price: 61200,
+    close_price: 68420.45,
+    price_usd: 68420.45,
+    change_24h: 3.4,
+    volume_24h: 31200000000,
+    avg_volume_24h: 16800000000,
+    range_high_20d: 69500,
+    range_low_20d: 61200,
+    funding_rate: 0.009,
+    funding_zscore: 1.1,
+    open_interest: 14800000000,
+    oi_change_24h: 4.2,
+    long_liquidations_1h: 8400000,
+    short_liquidations_1h: 5200000,
+    avg_liquidations_1h: 7500000,
+    momentum_score: 84.2,
+    captured_at: new Date().toISOString()
+  },
+  {
+    symbol: "ETH",
+    name: "Ethereum",
+    category: "Layer 1",
+    source: "mock",
+    timeframe: "1D",
+    open_price: 3553.99,
+    high_price: 3588,
+    low_price: 3010,
+    close_price: 3628.18,
+    price_usd: 3628.18,
+    change_24h: 2.1,
+    volume_24h: 18600000000,
+    avg_volume_24h: 12800000000,
+    range_high_20d: 3588,
+    range_low_20d: 3010,
+    funding_rate: 0.011,
+    funding_zscore: 1.2,
+    open_interest: 8200000000,
+    oi_change_24h: 3,
+    long_liquidations_1h: 6900000,
+    short_liquidations_1h: 5100000,
+    avg_liquidations_1h: 6200000,
+    momentum_score: 79.4,
+    captured_at: new Date().toISOString()
+  },
+  {
+    symbol: "SOL",
+    name: "Solana",
+    category: "Layer 1",
+    source: "mock",
+    timeframe: "1D",
+    open_price: 164.49,
+    high_price: 189,
+    low_price: 138,
+    close_price: 171.89,
+    price_usd: 171.89,
+    change_24h: 4.5,
+    volume_24h: 6200000000,
+    avg_volume_24h: 3900000000,
+    range_high_20d: 189,
+    range_low_20d: 138,
+    funding_rate: 0.031,
+    funding_zscore: 2.8,
+    open_interest: 2400000000,
+    oi_change_24h: 11.4,
+    long_liquidations_1h: 4100000,
+    short_liquidations_1h: 3600000,
+    avg_liquidations_1h: 3900000,
+    momentum_score: 88.6,
+    captured_at: new Date().toISOString()
+  }
+];
+
+type RequestOptions<T> = {
+  token?: string | null;
+  method?: string;
+  body?: unknown;
+  fallback?: T;
+};
+
+async function requestJson<T>(path: string, options: RequestOptions<T> = {}): Promise<T> {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json"
+  };
+
+  if (options.token) {
+    headers.Authorization = `Bearer ${options.token}`;
+  }
+
   try {
     const response = await fetch(`${apiUrl}${path}`, {
-      cache: "no-store"
+      method: options.method ?? "GET",
+      headers,
+      cache: "no-store",
+      body: options.body ? JSON.stringify(options.body) : undefined
     });
 
     if (!response.ok) {
@@ -160,15 +322,46 @@ async function fetchWithFallback<T>(path: string, fallback: T): Promise<T> {
     }
 
     return (await response.json()) as T;
-  } catch {
-    return fallback;
+  } catch (error) {
+    if (options.fallback !== undefined) {
+      return options.fallback;
+    }
+    throw error;
   }
 }
 
-export function getAssets() {
-  return fetchWithFallback<Asset[]>("/assets", fallbackAssets);
+export function getAssets(token?: string | null) {
+  return requestJson<Asset[]>("/assets", { token, fallback: fallbackAssets });
 }
 
-export function getSignals() {
-  return fetchWithFallback<Signal[]>("/signals/live", fallbackSignals);
+export function getSignals(token?: string | null) {
+  return requestJson<Signal[]>("/signals/live", { token, fallback: fallbackSignalFeed.signals });
+}
+
+export function getSignalFeed(token?: string | null) {
+  return requestJson<SignalFeed>("/signals/feed", { token, fallback: fallbackSignalFeed });
+}
+
+export function getMarketSnapshots(token?: string | null) {
+  return requestJson<MarketSnapshot[]>("/market/latest", { token, fallback: fallbackMarketSnapshots });
+}
+
+export async function getCurrentUser(token?: string | null) {
+  if (!token) {
+    return null;
+  }
+
+  try {
+    return await requestJson<UserProfile>("/auth/me", { token });
+  } catch {
+    return null;
+  }
+}
+
+export function confirmCheckout(sessionId: string, token: string) {
+  return requestJson<SubscriptionStatus>("/billing/confirm", {
+    method: "POST",
+    token,
+    body: { session_id: sessionId }
+  });
 }

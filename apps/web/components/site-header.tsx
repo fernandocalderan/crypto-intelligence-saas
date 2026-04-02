@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 const links = [
-  { href: "/", label: "Home" },
+  { href: "/", label: "Inicio" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/login", label: "Login" }
+  { href: "/login", label: "Acceso" }
 ];
 
 export function SiteHeader() {
@@ -16,7 +16,7 @@ export function SiteHeader() {
         </div>
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-haze">Crypto Intelligence</p>
-          <p className="text-sm text-ink">Signals, scoring and execution context.</p>
+          <p className="text-sm text-ink">Señales, scoring y contexto operativo.</p>
         </div>
       </Link>
       <nav className="flex flex-wrap items-center gap-2">
@@ -29,8 +29,13 @@ export function SiteHeader() {
             {link.label}
           </Link>
         ))}
+        <Link
+          href="/signup"
+          className="rounded-full bg-moss px-4 py-2 text-sm font-semibold uppercase tracking-[0.14em] text-canvas transition hover:bg-[#d2ff9d]"
+        >
+          Signup
+        </Link>
       </nav>
     </header>
   );
 }
-

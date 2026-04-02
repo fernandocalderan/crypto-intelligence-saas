@@ -18,6 +18,7 @@ def resolve_env_file() -> Path:
 
 class Settings(BaseSettings):
     app_env: str = "development"
+    app_base_url: str = "http://localhost:3000"
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/crypto_intelligence"
     redis_url: str = "redis://localhost:6379/0"
     binance_api_key: str = "your-binance-api-key"
@@ -26,11 +27,22 @@ class Settings(BaseSettings):
     bybit_api_secret: str = "your-bybit-api-secret"
     auth_secret: str = "replace-with-a-long-random-secret"
     stripe_secret_key: str = "sk_test_placeholder"
+    stripe_publishable_key: str = "pk_test_placeholder"
     stripe_webhook_secret: str = "whsec_placeholder"
-    stripe_price_starter: str = "price_starter_placeholder"
     stripe_price_pro: str = "price_pro_placeholder"
+    stripe_price_pro_plus: str = "price_pro_plus_placeholder"
+    enable_stripe_mock_checkout: bool = False
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
-    signal_engine_use_mock_data: bool = True
+    signal_engine_use_mock_data: bool = False
+    market_data_symbols: str = "BTCUSDT,ETHUSDT,SOLUSDT,DOGEUSDT,XRPUSDT"
+    market_data_schedule_minutes: int = 5
+    market_data_use_mock_fallback: bool = True
+    enable_market_data_scheduler: bool = True
+    market_data_run_initial_sync: bool = True
+    enable_binance_market_data: bool = True
+    enable_bybit_market_data: bool = True
+    enable_coinglass_market_data: bool = False
+    coinglass_api_key: str = "your-coinglass-api-key"
     enable_volume_spike_signal: bool = True
     enable_range_breakout_signal: bool = True
     enable_funding_extreme_signal: bool = True
@@ -47,6 +59,10 @@ class Settings(BaseSettings):
     @property
     def parsed_cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def parsed_market_data_symbols(self) -> list[str]:
+        return [symbol.strip().upper() for symbol in self.market_data_symbols.split(",") if symbol.strip()]
 
     @property
     def signal_flags(self) -> dict[str, bool]:

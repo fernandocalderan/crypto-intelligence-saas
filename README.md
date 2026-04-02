@@ -36,8 +36,12 @@ Rutas útiles:
 - dashboard: `http://localhost:3000/dashboard`
 - pricing: `http://localhost:3000/pricing`
 - health API: `http://localhost:8000/health`
-- activos mock: `http://localhost:8000/assets`
-- señales mock: `http://localhost:8000/signals`
+- activos: `http://localhost:8000/assets`
+- snapshots de mercado: `http://localhost:8000/market/latest`
+- señales live: `http://localhost:8000/signals/live`
+- feed con restricción por plan: `http://localhost:8000/signals/feed`
+- auth: `http://localhost:8000/auth/login`, `http://localhost:8000/auth/register`, `http://localhost:8000/auth/me`
+- billing: `http://localhost:8000/billing/checkout`, `http://localhost:8000/billing/confirm`
 
 ## Arranque con Docker
 
@@ -63,10 +67,17 @@ npm run install:api
 
 La base incluye:
 
-- modelo Postgres para `users`, `assets` y `signals`
-- endpoints mock de `assets` y `signals`
-- dashboard que consume datos reales del backend
+- modelo Postgres para `users`, `assets`, `signals`, `market_snapshots` y `subscriptions`
+- ingestión inicial de market data desde Binance y Bybit con fallback mock
+- auth básica con registro/login y sesión persistida por cookie en el frontend
+- endpoint `market/latest`, checkout Stripe y señales filtradas por plan
+- dashboard con banner de upgrade, limitación Free y desbloqueo Pro/Pro+
 - documentación para producto, arquitectura, señales, modelo de datos y despliegue
+
+## Billing local
+
+- si usas credenciales y `price_id` reales de Stripe, desactiva `ENABLE_STRIPE_MOCK_CHECKOUT`
+- en desarrollo, `ENABLE_STRIPE_MOCK_CHECKOUT=true` permite probar registro, pago simulado y acceso sin cobro real
 
 ## Siguiente paso recomendado
 
@@ -77,4 +88,3 @@ Definir con precisión las 5 señales comerciales del MVP y fijar para cada una:
 - umbrales de activación
 - frecuencia de cálculo
 - explicación visible para el cliente
-
