@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 
 from config import get_settings
+from services.pro_signal_view import build_pro_signal_view
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,32 @@ def _risk_context(signal: Any, snapshot: dict[str, Any] | None = None) -> str:
     return "Conviccion media. Requiere validar estructura y timing antes de ejecutar."
 
 
+def _state_emoji(execution_state: str, direction: str) -> str:
+    if execution_state == "EXECUTABLE":
+        return "🟢" if direction == "bullish" else "🔴"
+    if execution_state == "WATCHLIST":
+        return "🟡"
+    if execution_state == "WAIT_CONFIRMATION":
+        return "🟠"
+    return "⛔"
+
+
+def _severity_emoji(severity: str) -> str:
+    if severity == "positive":
+        return "✅"
+    if severity == "negative":
+        return "⛔"
+    return "⚠"
+
+
+def _format_plan_level(value: Any) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "n/d"
+    return _format_currency(numeric)
+
+
 def get_telegram_bot_username() -> str | None:
     username = get_settings().telegram_bot_username.strip().lstrip("@")
     return f"@{username}" if username else None
@@ -164,38 +191,140 @@ def _telegram_send_url(token: str) -> str:
     return f"https://api.telegram.org/bot{token}/sendMessage"
 
 
-def format_signal_alert_message(signal: Any, asset: dict[str, Any] | None = None) -> str:
-    asset_symbol = str(_get_value(signal, "asset_symbol", "UNKNOWN"))
-    signal_name = str(_get_value(signal, "signal_type", _get_value(signal, "signal_key", "Signal"))).replace("_", " ")
-    score = float(_get_value(signal, "score", 0.0))
-    confidence = float(_get_value(signal, "confidence", 0.0))
-    direction = str(_get_value(signal, "direction", "neutral"))
-    thesis = str(_get_value(signal, "thesis", "Sin tesis disponible"))
-    snapshot = asset or {}
+def format_pro_telegram_alert(signal_view: Any, plan: str = "pro") -> str:
+    headline = str(_get_value(signal_view, "headline", "Signal"))
+    execution_state = str(_get_value(signal_view, "execution_state", "WAIT_CONFIRMATION"))
+    direction = str(_get_value(signal_view, "direction", "neutral"))
+    summary = str(_get_value(signal_view, "summary", _get_value(signal_view, "thesis_short", "Sin resumen")))
+    model_score = float(_get_value(signal_view, "model_score", _get_value(signal_view, "score", 0.0)))
+    confidence_pct = float(_get_value(signal_view, "confidence_pct", _get_value(signal_view, "confidence", 0.0)))
+    thesis_short = str(_get_value(signal_view, "thesis_short", _get_value(signal_view, "thesis", "Sin tesis disponible")))
+    key_data = _get_value(signal_view, "key_data", {}) or {}
+    confirmations = list(_get_value(signal_view, "confirmations", []))
+    action_plan = _get_value(signal_view, "action_plan", {}) or {}
+    data_quality_warnings = list(_get_value(signal_view, "data_quality_warnings", []))
+
+    confirmation_lines = [
+        f"{_severity_emoji(_get_value(item, 'severity', 'warning'))} {_get_value(item, 'label', '')}"
+        for item in confirmations[:4]
+    ] or ["⚠ Confirmaciones limitadas en este entorno"]
+
+    warning_lines = [
+        f"{_severity_emoji(_get_value(item, 'severity', 'warning'))} {_get_value(item, 'message', '')}"
+        for item in data_quality_warnings[:3]
+    ] or ["✅ Sin warnings críticos de calidad de dato en esta lectura"]
+
+    plan_lines = [
+        f"• Acción: {_get_value(action_plan, 'action_now', 'wait')}",
+        f"• Bias: {_get_value(action_plan, 'bias', direction)}",
+        f"• Trigger: {_format_plan_level(_get_value(action_plan, 'trigger_level'))}",
+        f"• Invalidación: {_format_plan_level(_get_value(action_plan, 'invalidation_level'))}",
+        f"• TP1 / TP2: {_format_plan_level(_get_value(action_plan, 'tp1'))} / {_format_plan_level(_get_value(action_plan, 'tp2'))}",
+    ]
 
     return "\n".join(
         [
-            f"🚨 {asset_symbol} — {signal_name}",
+            f"{_state_emoji(execution_state, direction)} {headline}",
+            f"{execution_state} · {direction.upper()} · {plan.upper()}",
             "",
-            f"Score: {score:.1f}/10",
-            f"Confianza: {_confidence_label(confidence)} ({confidence:.1f}%)",
+            summary,
             "",
-            f"Direccion: {direction}",
+            f"Score: {model_score:.1f}/10",
+            f"Confianza: {_confidence_label(confidence_pct)} ({confidence_pct:.1f}%)",
+            f"Estado: {execution_state}",
             "",
             "Tesis:",
-            thesis,
+            thesis_short,
             "",
             "Datos clave:",
-            f"• Precio: {_format_currency(snapshot.get('price_usd'))}",
-            f"• Cambio 24h: {_format_signed_percent(snapshot.get('change_24h'))}",
-            f"• Volumen 24h: {_format_compact_number(snapshot.get('volume_24h'))}",
-            f"• Funding: {_format_funding(snapshot.get('funding_rate'))}",
-            f"• OI: {_format_signed_percent(snapshot.get('oi_change_24h'))}",
+            f"• Precio: {_format_currency(_get_value(key_data, 'price'))}",
+            f"• Cambio 24h: {_format_signed_percent(_get_value(key_data, 'change_24h'))}",
+            f"• Volumen 24h: {_format_compact_number(_get_value(key_data, 'volume_24h'))}",
+            f"• Funding: {_format_funding(_get_value(key_data, 'funding'))}",
+            f"• OI: {_format_signed_percent(_get_value(key_data, 'oi_change_24h'))}",
+            f"• Base: {_get_value(key_data, 'timeframe_base', 'n/d')} · {_get_value(key_data, 'source', 'n/d')}",
             "",
-            "Riesgo:",
-            _risk_context(signal, snapshot),
+            "Confirmaciones:",
+            *confirmation_lines,
+            "",
+            "Plan:",
+            *plan_lines,
+            "",
+            "Riesgo / calidad del dato:",
+            *warning_lines,
         ]
     )
+
+
+def format_confluence_setup_alert(setup_view: Any, plan: str = "pro") -> str:
+    headline = str(_get_value(setup_view, "headline", "Setup"))
+    execution_state = str(_get_value(setup_view, "execution_state", "WAIT_CONFIRMATION"))
+    direction = str(_get_value(setup_view, "direction", "neutral"))
+    summary = str(_get_value(setup_view, "summary", _get_value(setup_view, "thesis_short", "Sin resumen")))
+    score = float(_get_value(setup_view, "score", _get_value(setup_view, "model_score", 0.0)))
+    confidence_pct = float(_get_value(setup_view, "confidence", _get_value(setup_view, "confidence_pct", 0.0)))
+    thesis_short = str(_get_value(setup_view, "thesis_short", _get_value(setup_view, "thesis", "Sin tesis disponible")))
+    signal_keys = [str(item) for item in list(_get_value(setup_view, "signal_keys", []))]
+    key_data = _get_value(setup_view, "key_data", {}) or {}
+    confirmations = list(_get_value(setup_view, "confirmations", []))
+    action_plan = _get_value(setup_view, "action_plan", {}) or {}
+    data_quality_warnings = list(_get_value(setup_view, "data_quality_warnings", []))
+
+    confluence_line = " + ".join(signal_keys) if signal_keys else "n/d"
+    confirmation_lines = [
+        f"{_severity_emoji(_get_value(item, 'severity', 'warning'))} {_get_value(item, 'label', '')}"
+        for item in confirmations[:4]
+    ] or ["⚠ Confirmaciones limitadas en este entorno"]
+
+    warning_lines = [
+        f"{_severity_emoji(_get_value(item, 'severity', 'warning'))} {_get_value(item, 'message', '')}"
+        for item in data_quality_warnings[:3]
+    ] or ["✅ Sin warnings críticos de calidad de dato en esta lectura"]
+
+    plan_lines = [
+        f"• Acción: {_get_value(action_plan, 'action_now', 'wait')}",
+        f"• Bias: {_get_value(action_plan, 'bias', direction)}",
+        f"• Trigger: {_format_plan_level(_get_value(action_plan, 'trigger_level'))}",
+        f"• Invalidación: {_format_plan_level(_get_value(action_plan, 'invalidation_level'))}",
+        f"• TP1 / TP2: {_format_plan_level(_get_value(action_plan, 'tp1'))} / {_format_plan_level(_get_value(action_plan, 'tp2'))}",
+    ]
+
+    return "\n".join(
+        [
+            f"{_state_emoji(execution_state, direction)} {headline}",
+            f"{execution_state} · {direction.upper()} · {plan.upper()}",
+            "",
+            summary,
+            "",
+            f"Confluencia: {confluence_line}",
+            f"Score: {score:.1f}/10 | Confianza: {confidence_pct:.1f}%",
+            "",
+            "Tesis:",
+            thesis_short,
+            "",
+            "Datos clave:",
+            f"• Precio: {_format_currency(_get_value(key_data, 'price'))}",
+            f"• Cambio 24h: {_format_signed_percent(_get_value(key_data, 'change_24h'))}",
+            f"• Volumen 24h: {_format_compact_number(_get_value(key_data, 'volume_24h'))}",
+            f"• Funding: {_format_funding(_get_value(key_data, 'funding'))}",
+            f"• OI: {_format_signed_percent(_get_value(key_data, 'oi_change_24h'))}",
+            f"• Base: {_get_value(key_data, 'timeframe_base', 'n/d')} · {_get_value(key_data, 'source', 'n/d')}",
+            "",
+            "Confirmaciones:",
+            *confirmation_lines,
+            "",
+            "Plan:",
+            *plan_lines,
+            "",
+            "Riesgo / calidad del dato:",
+            *warning_lines,
+        ]
+    )
+
+
+def format_signal_alert_message(signal: Any, asset: dict[str, Any] | None = None, plan: str = "pro") -> str:
+    signal_view = build_pro_signal_view(signal, asset, plan=plan)
+    return format_pro_telegram_alert(signal_view, plan=plan)
 
 
 def format_telegram_test_message(*, user_identifier: str, plan: str) -> str:

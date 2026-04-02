@@ -1,4 +1,7 @@
 import { AlertsSettingsCard } from "../../components/alerts-settings-card";
+import { SetupsHistory } from "../../components/dashboard/setups-history";
+import { SetupsPerformance } from "../../components/dashboard/setups-performance";
+import { SetupsSection } from "../../components/dashboard/setups-section";
 import { LogoutButton } from "../../components/logout-button";
 import { SignalCard } from "../../components/signal-card";
 import { StatCard } from "../../components/stat-card";
@@ -8,6 +11,9 @@ import {
   getAssets,
   getMarketSnapshots,
   getMyAlerts,
+  getSignalSetups,
+  getSetupsPerformance,
+  getSetupsHistory,
   getTelegramConnectInstructions,
   getSignalFeed
 } from "../../lib/api";
@@ -65,19 +71,24 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     }
   }
 
-  const [assets, signalFeed, marketSnapshots, myAlerts, telegramInstructions] = await Promise.all([
+  const dashboardPlan = user?.plan ?? "free";
+  const [assets, signalFeed, setupState, setupsHistory, setupsPerformance, marketSnapshots, myAlerts, telegramInstructions] = await Promise.all([
     getAssets(token),
     getSignalFeed(token),
+    getSignalSetups(token, dashboardPlan),
+    getSetupsHistory(token, dashboardPlan),
+    getSetupsPerformance(token, dashboardPlan),
     getMarketSnapshots(token),
     getMyAlerts(token),
     getTelegramConnectInstructions(token)
   ]);
 
+  const accessPlan = user?.plan ?? signalFeed.access_plan;
   const avgScore = signalFeed.signals.length
     ? signalFeed.signals.reduce((sum, signal) => sum + signal.score, 0) / signalFeed.signals.length
     : 0;
   const hiddenSignals = Math.max(signalFeed.total_available - signalFeed.visible_count, 0);
-  const isFreePlan = signalFeed.access_plan === "free";
+  const isFreePlan = accessPlan === "free";
   const lockedPreviewCount = hiddenSignals > 0 ? Math.min(hiddenSignals, 2) : 0;
   const alertState = user
     ? {
@@ -118,6 +129,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
 
       {isFreePlan && hiddenSignals > 0 ? <UpgradeBanner hiddenSignals={hiddenSignals} /> : null}
+
+      <SetupsSection setupState={setupState} accessPlan={accessPlan} />
+
+      <SetupsHistory historyState={setupsHistory} accessPlan={accessPlan} />
+
+      <SetupsPerformance performanceState={setupsPerformance} accessPlan={accessPlan} />
 
       <AlertsSettingsCard
         initialState={alertState}
@@ -216,11 +233,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
 
         <div className="surface p-6 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-haze">Signals</p>
-          <h2 className="mt-2 text-2xl font-semibold text-ink">Feed activo</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-haze">Señales base</p>
+          <h2 className="mt-2 text-2xl font-semibold text-ink">Lecturas individuales del engine</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-haze">
+            Este bloque mantiene visibles las señales unitarias del motor. Sirven como capa técnica de inspección y
+            como respaldo cuando no hay setups de confluencia válidos.
+          </p>
           <div className="mt-6 space-y-4">
             {signalFeed.signals.map((signal) => (
-              <SignalCard key={signal.id} signal={signal} />
+              <SignalCard key={signal.id} signal={signal} accessPlan={accessPlan} />
             ))}
             {Array.from({ length: lockedPreviewCount }).map((_, index) => (
               <SignalCard key={`locked-${index}`} locked />

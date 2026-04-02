@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     alert_dedupe_window_minutes: int = 5
     alert_max_per_run: int = 50
     alerts_process_on_scheduler: bool = True
+    enable_confluence_engine: bool = True
+    alert_on_individual_signals: bool = False
+    min_setup_score: float = 7.5
+    min_setup_confidence: float = 70.0
+    setup_require_no_mock_for_executable: bool = True
 
     model_config = SettingsConfigDict(
         env_file=str(resolve_env_file()),

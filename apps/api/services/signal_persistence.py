@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from config import get_settings
 from db.models import AssetRecord, SignalRecord
-from models.schemas import SignalResponse
+from models.schemas import ProSignalResponse
+from services.pro_signal_view import build_pro_signal_view
 
 logger = logging.getLogger(__name__)
 
@@ -218,18 +219,22 @@ def persist_signals(
     return new_records
 
 
-def map_signal_record_to_response(record: SignalRecord) -> SignalResponse:
-    return SignalResponse(
-        id=record.public_id or record.signal_hash,
-        signal_key=record.signal_key,
-        asset_symbol=record.asset_symbol,
-        signal_type=record.signal_type,
-        timeframe=record.timeframe,
-        direction=record.direction or "neutral",
-        confidence=record.confidence,
-        score=record.score,
-        thesis=record.thesis,
-        evidence=list(record.evidence_json or []),
-        source=record.source,
-        generated_at=record.created_at,
+def map_signal_record_to_response(record: SignalRecord) -> ProSignalResponse:
+    return build_pro_signal_view(
+        {
+            "id": record.public_id or record.signal_hash,
+            "signal_key": record.signal_key,
+            "asset_symbol": record.asset_symbol,
+            "signal_type": record.signal_type,
+            "timeframe": record.timeframe,
+            "direction": record.direction or "neutral",
+            "confidence": record.confidence,
+            "score": record.score,
+            "thesis": record.thesis,
+            "evidence": list(record.evidence_json or []),
+            "source": record.source,
+            "generated_at": record.created_at,
+            "source_snapshot_time": record.source_snapshot_time,
+        },
+        plan="pro",
     )

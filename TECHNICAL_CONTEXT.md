@@ -10,9 +10,17 @@ Snapshot tecnico del repositorio a fecha 2026-04-02. Este documento esta pensado
 - un dashboard con acceso restringido por plan
 - un backend FastAPI para auth, billing, market data, senales y alertas
 - un motor de senales MVP con 5 detectores
-- una capa Postgres para persistir usuarios, assets, snapshots, senales, suscripciones y entregas de alertas
+- un motor de confluencia que agrupa senales por activo para construir setups PRO
+- una capa Postgres para persistir usuarios, assets, snapshots, senales, setups, suscripciones y entregas de alertas
 
 La propuesta comercial actual no es trading automatico. Es una capa de senales crypto accionables con score, tesis, evidencia visible y, para `pro`, distribucion push por Telegram.
+
+Desde 2026-04-02 la salida del producto ya no es una alerta tecnica cruda. El backend trabaja en dos niveles:
+
+- `senal individual`: detector base persistido en `signals`
+- `setup de confluencia`: agrupacion por activo que decide si merece una alerta push PRO
+
+Sobre cualquiera de las dos capas, el backend construye una vista `PRO` con estado operativo, resumen, confirmaciones, plan indicativo y warnings de calidad del dato.
 
 ## 2. Alcance actual del sistema
 
@@ -28,11 +36,19 @@ Implementado hoy:
   - `funding_extreme`
   - `oi_divergence`
   - `liquidation_cluster`
+- motor de confluencia para:
+  - `Trend Continuation`
+  - `Squeeze Reversal`
+  - `Positioning Trap`
+- capa `ProSignalView` para transformar la senal base en salida de producto
+- capa `setup_view.py` para transformar setups de confluencia en salida PRO
 - persistencia real de senales en la tabla `signals`
+- persistencia real de setups ejecutables en la tabla `setups`
 - deduplicacion de senales por hash con bucket temporal
 - sistema push+pull de alertas:
   - feed on-demand para dashboard
   - dispatch inmediato por Telegram para usuarios elegibles
+- historico de setups con evolucion de estado visible en dashboard
 - flujo de checkout Stripe con modo mock para desarrollo
 - logica de restriccion por planes `free`, `pro` y `pro_plus`
 - tests minimos del subsistema de alertas
@@ -158,7 +174,10 @@ El backend añade encima:
 - adaptacion a modelo persistible
 - hash de deduplicacion temporal
 - persistencia en `signals`
-- pipeline de alertas sobre senales nuevas
+- transformacion a `ProSignalView`
+- motor de confluencia que agrupa senales por activo
+- clasificacion de setups con score compuesto
+- pipeline de alertas que, por defecto, usa setups en lugar de senales individuales
 
 ## 5. Flujo end-to-end
 
@@ -168,6 +187,8 @@ El backend añade encima:
 2. Next server component lee la cookie `ci_session`.
 3. Next llama al backend mediante `apps/web/lib/api.ts`:
    - `/assets`
+   - `/signals/setups`
+   - `/signals/setups/history`
    - `/signals/feed`
    - `/market/latest`
    - `/alerts/me`
@@ -175,8 +196,12 @@ El backend añade encima:
 5. Si faltan snapshots o falla el acceso a DB, intenta ingesta live.
 6. Si la ingesta tambien falla y el fallback esta habilitado, devuelve snapshots mock.
 7. El signal engine calcula las senales activas sobre esos snapshots normalizados.
-8. El feed se recorta si el usuario esta en plan `free`.
-9. La card `Alertas PRO` refleja estado, canales y thresholds del usuario autenticado.
+8. El backend transforma las señales a `ProSignalResponse` y los setups a `SetupResponse`.
+9. La web muestra `Setups PRO` como bloque principal y `Señales base` como capa secundaria.
+10. Si el usuario esta en `free`, el feed y el historico de setups se recortan a teaser.
+11. Si el usuario esta en `pro`, ve setups completos, historico y señales completas.
+12. Si el usuario esta en `pro_plus`, ve lo mismo y mantiene espacio reservado para seguimiento futuro.
+13. La card `Alertas PRO` refleja estado, canales y thresholds del usuario autenticado.
 
 ### 5.2 Flujo push de alertas
 
@@ -184,17 +209,30 @@ El backend añade encima:
 2. Se generan snapshots normalizados y se persisten en `market_snapshots`.
 3. El backend calcula senales sobre esos snapshots.
 4. `signal_persistence.py` transforma las salidas del engine y persiste solo las nuevas.
-5. La deduplicacion usa hash sobre:
+5. Si `ENABLE_CONFLUENCE_ENGINE=true`, el backend usa las senales del ciclo para generar setups por activo.
+6. La deduplicacion de senales usa hash sobre:
    - `asset_symbol`
    - `signal_key`
    - `timeframe`
    - `direction`
    - bucket temporal de `ALERT_DEDUPE_WINDOW_MINUTES`
-6. Si `ALERTS_PROCESS_ON_SCHEDULER=true`, `alert_engine.py` procesa las senales nuevas.
-7. Solo usuarios `pro` o `pro_plus` con suscripciones activas y canales configurados son elegibles.
-8. Se crea `alert_deliveries` en estado `pending`.
-9. Se intenta el envio por Telegram o email.
-10. La entrega se marca como `sent` o `failed`.
+7. Los setups `EXECUTABLE` se materializan en `setups`.
+8. El scheduler actualiza el lifecycle de setups activos usando el ultimo precio por activo.
+9. Si `ALERTS_PROCESS_ON_SCHEDULER=true`, `alert_engine.py` procesa las senales nuevas.
+10. Por defecto, si el motor de confluencia esta habilitado y `ALERT_ON_INDIVIDUAL_SIGNALS=false`, el dispatch push usa setups de confluencia.
+11. El anclaje de dedupe de entregas sigue reutilizando `alert_deliveries`, apoyandose en una senal nueva del setup como driver materializado.
+12. Solo usuarios `pro` o `pro_plus` con suscripciones activas y canales configurados son elegibles.
+13. Se crea `alert_deliveries` en estado `pending`.
+14. Se intenta el envio por Telegram o email.
+15. La entrega se marca como `sent` o `failed`.
+
+Matiz importante:
+
+- el dashboard y `signals/feed` siguen trabajando con senales individuales enriquecidas
+- Telegram usa setups de confluencia por defecto
+- el modo legacy puede restaurarse con:
+  - `ENABLE_CONFLUENCE_ENGINE=false`
+  - `ALERT_ON_INDIVIDUAL_SIGNALS=true`
 
 ### 5.3 Flujo de autenticacion
 
@@ -246,9 +284,13 @@ Rutas implementadas:
 - `GET /market/latest`
 - `GET /signals`
 - `GET /signals/live`
+- `GET /signals/setups`
+- `GET /signals/setups/history`
 - `GET /signals/feed`
 - `GET /alerts/me`
+- `GET /alerts/telegram/connect-instructions`
 - `POST /alerts/telegram/connect`
+- `POST /alerts/telegram/test`
 - `POST /alerts/preferences`
 - `POST /auth/register`
 - `POST /auth/login`
@@ -333,13 +375,15 @@ Modulos clave:
 
 - `apps/api/services/signal_engine.py`
 - `apps/api/services/signal_persistence.py`
+- `apps/api/services/pro_signal_view.py`
 
 Comportamiento actual:
 
 1. el runtime calcula payloads de detector con `compute_signal_payloads()`
-2. el feed de API sigue pudiendo responder on-demand
-3. el scheduler persiste las senales nuevas en `signals`
-4. las senales persistidas se usan para el pipeline de alertas y como historico tecnico
+2. la capa `ProSignalView` transforma esas salidas a un contrato de producto
+3. el feed de API sigue pudiendo responder on-demand
+4. el scheduler persiste las senales nuevas en `signals`
+5. las senales persistidas se usan para el pipeline de alertas y como historico tecnico
 
 Consecuencias:
 
@@ -347,7 +391,96 @@ Consecuencias:
 - el sistema puede seguir degradando a modo pull si las alertas se desactivan
 - la persistencia ya existe, pero el frontend principal sigue leyendo feed on-demand
 
-### 6.6 Motor de alertas
+Contrato de salida actual por senal:
+
+- campos base heredados:
+  - `asset_symbol`
+  - `signal_key`
+  - `signal_type`
+  - `timeframe`
+  - `direction`
+  - `score`
+  - `confidence`
+  - `thesis`
+  - `evidence`
+  - `source`
+  - `generated_at`
+- campos PRO añadidos:
+  - `headline`
+  - `execution_state`
+  - `execution_reason`
+  - `summary`
+  - `model_score`
+  - `confidence_pct`
+  - `thesis_short`
+  - `key_data`
+  - `confirmations`
+  - `action_plan`
+  - `data_quality_warnings`
+  - `is_mock_contaminated`
+  - `is_trade_executable`
+  - `detail_level`
+  - `pro_plus_follow_up`
+
+Regla de producto:
+
+- el plan `free` conserva solo teaser y no recibe estado operativo, plan ni warnings
+
+### 6.6 Motor de confluencia
+
+Modulos clave:
+
+- `packages/signal-engine/confluence.py`
+- `packages/signal-engine/setup_scoring.py`
+- `apps/api/services/confluence_engine.py`
+- `apps/api/services/setup_view.py`
+- `apps/api/services/setup_engine.py`
+
+Reglas implementadas:
+
+- `Trend Continuation`
+  - requiere `volume_spike` + `range_breakout`
+- `Squeeze Reversal`
+  - requiere `funding_extreme` + `liquidation_cluster`
+- `Positioning Trap`
+  - requiere `oi_divergence`
+  - gana peso si coincide con `funding_extreme`
+  - tambien puede incorporar contexto de breakout opuesto fallando
+
+Scoring compuesto del setup:
+
+- 50% score medio de senales base
+- 20% confianza agregada
+- 20% contexto de mercado
+- 10% bonus por confluencia fuerte
+
+Penalizaciones:
+
+- `mock_contamination`
+- `liquidations_unverified`
+- `oi_inferred`
+- `snapshot_missing`
+
+Matiz importante:
+
+- `timeframe_misaligned` sigue generando warning y penaliza confianza
+- no se usa como bloqueo duro del score porque es una limitacion estructural del snapshot agregado `1D`
+
+Persistencia y lifecycle:
+
+- solo los setups `EXECUTABLE` e `is_trade_executable=true` se materializan
+- la tabla `setups` guarda score, confidence, niveles, resumen y snapshot_data
+- estados soportados:
+  - `ACTIVE`
+  - `TP1_HIT`
+  - `TP2_HIT`
+  - `INVALIDATED`
+  - `EXPIRED`
+- por ahora el dedupe de setups persistidos es pragmatico:
+  - no crea un nuevo setup si ya existe uno activo con el mismo `asset_symbol + setup_key + direction`
+- la expiracion automatica actual usa una ventana fija de 72 horas
+
+### 6.7 Motor de alertas
 
 Modulos clave:
 
@@ -362,6 +495,9 @@ Reglas de negocio implementadas:
 - thresholds globales por defecto:
   - `ALERT_MIN_SCORE=7.0`
   - `ALERT_MIN_CONFIDENCE=0.6`
+- thresholds del motor de setups:
+  - `MIN_SETUP_SCORE=7.5`
+  - `MIN_SETUP_CONFIDENCE=70`
 - `0.6` de confianza se interpreta como `60%`
 - no se reenviara la misma senal al mismo usuario y mismo canal
 - la deduplicacion de envio descansa en `alert_deliveries` con unique por:
@@ -373,6 +509,22 @@ Canales:
 
 - Telegram: implementado con `httpx` contra Bot API
 - Email: stub preparado, detras de flag, sin proveedor real
+
+Salida push actual:
+
+- Telegram recibe un setup PRO por defecto
+- las senales individuales siguen pudiendo enviarse solo en modo legacy
+- el mensaje incluye:
+  - titular
+  - tipo de setup
+  - confluencia base
+  - estado operativo
+  - score y confianza
+  - tesis
+  - datos clave
+  - confirmaciones
+  - plan indicativo
+  - warnings de riesgo/calidad
 
 Tolerancia a fallos:
 
@@ -465,6 +617,28 @@ Matiz importante:
 - los snapshots normalizados que consumen los detectores son hoy agregados de tipo diario (`timeframe = "1D"`)
 - por tanto, el motor actual sigue siendo un MVP heuristico y no un sistema multi-timeframe riguroso
 
+### 7.7 Capa PRO de clasificacion operativa
+
+La clasificacion operativa se construye en `apps/api/services/pro_signal_view.py`.
+
+Estados usados:
+
+- `EXECUTABLE`
+- `WATCHLIST`
+- `WAIT_CONFIRMATION`
+- `DISCARD`
+
+Reglas resumidas:
+
+- `EXECUTABLE` exige score alto, confianza alta, confirmaciones suficientes, niveles indicativos disponibles y ausencia de contaminacion mock critica
+- `WATCHLIST` indica interes claro, pero sin trigger suficientemente limpio
+- `WAIT_CONFIRMATION` indica tesis valida con confirmacion incompleta
+- `DISCARD` indica lectura demasiado debil o degradada
+
+Regla conservadora critica:
+
+- una señal con `mock_contamination` nunca escala a `EXECUTABLE`
+
 ## 8. Modelo de datos
 
 Tablas actuales:
@@ -473,6 +647,7 @@ Tablas actuales:
 - `assets`
 - `market_snapshots`
 - `signals`
+- `setups`
 - `subscriptions`
 - `alert_subscriptions`
 - `alert_deliveries`
@@ -484,6 +659,7 @@ Uso real hoy:
 - `market_snapshots`: usada activamente
 - `subscriptions`: usada activamente
 - `signals`: usada activamente por runtime de alertas
+- `setups`: usada activamente para historico de setups PRO y lifecycle
 - `alert_subscriptions`: usada activamente
 - `alert_deliveries`: usada activamente
 
@@ -491,6 +667,7 @@ Relaciones relevantes:
 
 - un asset -> muchos market snapshots
 - un asset -> muchas signals
+- un asset -> muchos setups
 - un user -> muchas subscriptions
 - un user -> muchas alert_subscriptions
 - un user -> muchas alert_deliveries
@@ -514,6 +691,7 @@ Matiz importante de compatibilidad:
 
 - `signals` conserva algunos campos legacy para no romper schema anterior
 - `init_db.py` intenta parchear tablas ya existentes sin requerir Alembic
+- `setups` se crea via `Base.metadata.create_all()`; aun no existe migracion formal
 
 ## 9. Detalles frontend
 
@@ -547,8 +725,17 @@ Existen route handlers para:
 - `POST /api/auth/logout`
 - `POST /api/billing/checkout`
 - `POST /api/events`
+
+Pantalla de dashboard hoy:
+
+- `Setups PRO` como bloque principal
+- `Historico de Setups` debajo, consumiendo `/signals/setups/history`
+- `Señales base` como bloque tecnico secundario
+- configuracion de alertas y Telegram en la misma pagina
 - `GET /api/alerts/me`
+- `GET /api/alerts/telegram/connect-instructions`
 - `POST /api/alerts/telegram/connect`
+- `POST /api/alerts/telegram/test`
 - `POST /api/alerts/preferences`
 
 Su objetivo es:
@@ -580,6 +767,18 @@ Comportamiento:
 - el plan `free` solo ve las 2 primeras senales
 - el numero de senales bloqueadas se muestra en un banner de upgrade
 - las senales bloqueadas se renderizan como placeholders visuales
+- las senales visibles en `free` salen en modo teaser:
+  - titular
+  - score
+  - direccion
+  - tesis corta
+- las senales visibles en `pro` muestran:
+  - estado operativo
+  - resumen
+  - confirmaciones
+  - plan indicativo
+  - warnings de calidad del dato
+- `pro_plus` añade un campo reservado para seguimiento futuro
 - el bloque `Alertas PRO`:
   - muestra upgrade prompt para `free`
   - permite a `pro` y `pro_plus` configurar Telegram y thresholds
@@ -623,11 +822,17 @@ Variables de alertas:
 - `ENABLE_TELEGRAM_ALERTS`
 - `ENABLE_EMAIL_ALERTS`
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_BOT_USERNAME`
 - `ALERT_MIN_SCORE`
 - `ALERT_MIN_CONFIDENCE`
 - `ALERT_DEDUPE_WINDOW_MINUTES`
 - `ALERT_MAX_PER_RUN`
 - `ALERTS_PROCESS_ON_SCHEDULER`
+- `ENABLE_CONFLUENCE_ENGINE`
+- `ALERT_ON_INDIVIDUAL_SIGNALS`
+- `MIN_SETUP_SCORE`
+- `MIN_SETUP_CONFIDENCE`
+- `SETUP_REQUIRE_NO_MOCK_FOR_EXECUTABLE`
 
 Variables de billing:
 
@@ -700,6 +905,9 @@ Cobertura actual:
 - gating por plan
 - no duplicacion de entrega por usuario/canal
 - formatter de Telegram
+- clasificacion `ProSignalView`
+- bloqueo de `EXECUTABLE` bajo contaminacion mock
+- presencia de estado, plan y warnings en el formatter PRO
 
 Lo que sigue faltando:
 
@@ -719,10 +927,11 @@ Estos puntos son importantes para cualquier GPT o ingeniero que evolucione el pr
 4. Los timeframes de los snapshots y los timeframes de las senales no estan verdaderamente alineados.
 5. El signal engine se importa via `sys.path` en lugar de empaquetarse de forma formal.
 6. El tracking de eventos solo loguea del lado servidor y no persiste nada.
-7. La persistencia de senales existe, pero el frontend principal aun no consume un historico materializado.
+7. La persistencia de senales existe, pero el frontend principal aun no consume un historico materializado; sigue usando feed on-demand enriquecido.
 8. El canal email de alertas es solo un stub.
 9. No hay retries, colas ni backoff para alertas.
 10. Los fallbacks del frontend pueden ocultar fallos reales del backend durante QA manual.
+11. Los niveles del `action_plan` son indicativos; no deben interpretarse como execution algorítmica precisa.
 
 ## 14. Reglas de evolucion segura
 
@@ -754,6 +963,7 @@ Si otro GPT va a trabajar sobre este proyecto, el modelo mental correcto es este
 - esto no es solo un repo de algoritmos de senales; es una base de SaaS comercial
 - conversion, billing, gating y alertas son preocupaciones de primer nivel
 - el backend esta hecho para ser tolerante a fallos y rapido de iterar en local
+- la `Señal PRO` es hoy una capa central de producto, no solo cosmética de UI
 - el producto hoy combina dos modos:
   - pull: dashboard consulta feed y snapshots
   - push: scheduler detecta senales nuevas y las distribuye a `pro`

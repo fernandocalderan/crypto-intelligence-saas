@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,10 +29,144 @@ class SignalResponse(BaseModel):
     generated_at: datetime
 
 
-class StoredSignalResponse(SignalResponse):
-    signal_hash: str
+class SignalConfirmation(BaseModel):
+    label: str
+    severity: Literal["positive", "warning", "negative"]
+
+
+class SignalDataQualityWarning(BaseModel):
+    code: str
+    message: str
+    severity: Literal["warning", "negative"] = "warning"
+
+
+class SignalKeyData(BaseModel):
+    price: float | None = None
+    change_24h: float | None = None
+    volume_24h: float | None = None
+    funding: float | None = None
+    oi_change_24h: float | None = None
+    timeframe_base: str | None = None
+    source: str | None = None
+
+
+class SignalActionPlan(BaseModel):
+    action_now: Literal["enter", "wait", "discard"]
+    bias: str
+    trigger_level: float | None = None
+    invalidation_level: float | None = None
+    tp1: float | None = None
+    tp2: float | None = None
+    levels_are_indicative: bool = True
+    note: str | None = None
+
+
+class SignalProPlusFollowUp(BaseModel):
+    status: str
+    note: str
+
+
+class SetupSignalComponent(BaseModel):
+    signal_key: str
+    signal_type: str
+    direction: str
+    score: float
+    confidence: float
+
+
+class ProSignalResponse(SignalResponse):
+    headline: str
+    execution_state: Literal["EXECUTABLE", "WATCHLIST", "WAIT_CONFIRMATION", "DISCARD"] | None = None
+    execution_reason: str | None = None
+    summary: str | None = None
+    model_score: float | None = None
+    confidence_pct: float | None = None
+    thesis_short: str | None = None
+    key_data: SignalKeyData | None = None
+    confirmations: list[SignalConfirmation] = Field(default_factory=list)
+    action_plan: SignalActionPlan | None = None
+    data_quality_warnings: list[SignalDataQualityWarning] = Field(default_factory=list)
+    is_mock_contaminated: bool = False
+    is_trade_executable: bool = False
+    detail_level: Literal["teaser", "full"] = "full"
     source_snapshot_time: datetime | None = None
+    pro_plus_follow_up: SignalProPlusFollowUp | None = None
+
+
+class StoredSignalResponse(ProSignalResponse):
+    signal_hash: str
     is_active: bool = True
+
+
+class ConfluenceSetupResponse(BaseModel):
+    setup_key: str
+    setup_type: str
+    asset_symbol: str
+    direction: str
+    signal_keys: list[str] = Field(default_factory=list)
+    signals: list[SetupSignalComponent] = Field(default_factory=list)
+    headline: str
+    execution_state: Literal["EXECUTABLE", "WATCHLIST", "WAIT_CONFIRMATION", "DISCARD"] | None = None
+    execution_reason: str | None = None
+    summary: str | None = None
+    thesis: str
+    thesis_short: str | None = None
+    score: float
+    confidence: float
+    model_score: float | None = None
+    confidence_pct: float | None = None
+    key_data: SignalKeyData | None = None
+    confirmations: list[SignalConfirmation] = Field(default_factory=list)
+    action_plan: SignalActionPlan | None = None
+    data_quality_warnings: list[SignalDataQualityWarning] = Field(default_factory=list)
+    is_mock_contaminated: bool = False
+    is_trade_executable: bool = False
+    generated_at: datetime
+    source_snapshot_time: datetime | None = None
+    detail_level: Literal["teaser", "full"] = "full"
+    pro_plus_follow_up: SignalProPlusFollowUp | None = None
+
+
+class SetupHistoryResponse(BaseModel):
+    id: str
+    asset_symbol: str
+    setup_key: str
+    setup_type: str
+    headline: str
+    direction: str
+    status: Literal["ACTIVE", "TP1_HIT", "TP2_HIT", "INVALIDATED", "EXPIRED"]
+    execution_state: Literal["EXECUTABLE", "WATCHLIST", "WAIT_CONFIRMATION", "DISCARD"]
+    score: float
+    confidence: float
+    summary: str | None = None
+    entry: float | None = None
+    tp1: float | None = None
+    tp2: float | None = None
+    invalidation: float | None = None
+    current_price: float | None = None
+    is_mock_contaminated: bool = False
+    created_at: datetime
+    updated_at: datetime | None = None
+    detail_level: Literal["teaser", "full"] = "full"
+
+
+class SetupPerformanceBucket(BaseModel):
+    setup_key: str
+    setup_type: str
+    total: int
+    tp1_hit_pct: float
+    tp2_hit_pct: float
+    invalidated_pct: float
+
+
+class SetupPerformanceResponse(BaseModel):
+    total_setups: int
+    active: int
+    tp1_hit_pct: float
+    tp2_hit_pct: float
+    invalidated_pct: float
+    avg_time_to_tp1_hours: float
+    by_setup_type: list[SetupPerformanceBucket] = Field(default_factory=list)
 
 
 class MarketSnapshotResponse(BaseModel):
@@ -113,7 +247,7 @@ class SignalFeedResponse(BaseModel):
     total_available: int
     visible_count: int
     has_locked_signals: bool
-    signals: list[SignalResponse]
+    signals: list[ProSignalResponse]
 
 
 class TrackEventRequest(BaseModel):

@@ -151,19 +151,23 @@ def test_telegram_formatter_contains_core_signal_fields() -> None:
             "direction": "bullish",
             "thesis": "BTC imprime flujo nuevo y expansión direccional.",
             "source": "binance+bybit",
+            "timeframe": "4H",
         },
         {
             "price_usd": 68420.45,
             "change_24h": 3.4,
             "volume_24h": 31200000000,
+            "avg_volume_24h": 16800000000,
             "funding_rate": 0.009,
             "oi_change_24h": 4.2,
             "source": "binance+bybit",
+            "timeframe": "1D",
         },
     )
 
     assert "BTC" in message
     assert "Volume Spike" in message
     assert "Score: 8.1/10" in message
-    assert "Direccion: bullish" in message
-    assert "Precio:" in message
+    assert "Estado:" in message
+    assert "Plan:" in message
+    assert "Riesgo / calidad del dato:" in message

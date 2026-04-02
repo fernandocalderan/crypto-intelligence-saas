@@ -8,6 +8,45 @@ export type Asset = {
   momentum_score: number;
 };
 
+export type ExecutionState = "EXECUTABLE" | "WATCHLIST" | "WAIT_CONFIRMATION" | "DISCARD";
+
+export type SignalConfirmation = {
+  label: string;
+  severity: "positive" | "warning" | "negative";
+};
+
+export type SignalDataQualityWarning = {
+  code: string;
+  message: string;
+  severity: "warning" | "negative";
+};
+
+export type SignalKeyData = {
+  price?: number | null;
+  change_24h?: number | null;
+  volume_24h?: number | null;
+  funding?: number | null;
+  oi_change_24h?: number | null;
+  timeframe_base?: string | null;
+  source?: string | null;
+} | null;
+
+export type SignalActionPlan = {
+  action_now: "enter" | "wait" | "discard";
+  bias: string;
+  trigger_level?: number | null;
+  invalidation_level?: number | null;
+  tp1?: number | null;
+  tp2?: number | null;
+  levels_are_indicative?: boolean;
+  note?: string | null;
+} | null;
+
+export type ProPlusFollowUp = {
+  status: string;
+  note: string;
+} | null;
+
 export type Signal = {
   id: string;
   signal_key: string;
@@ -21,6 +60,22 @@ export type Signal = {
   evidence: string[];
   source: string;
   generated_at: string;
+  headline?: string | null;
+  execution_state?: ExecutionState | null;
+  execution_reason?: string | null;
+  summary?: string | null;
+  model_score?: number | null;
+  confidence_pct?: number | null;
+  thesis_short?: string | null;
+  key_data?: SignalKeyData;
+  confirmations?: SignalConfirmation[];
+  action_plan?: SignalActionPlan;
+  data_quality_warnings?: SignalDataQualityWarning[];
+  is_mock_contaminated?: boolean;
+  is_trade_executable?: boolean;
+  detail_level?: "teaser" | "full";
+  source_snapshot_time?: string | null;
+  pro_plus_follow_up?: ProPlusFollowUp;
 };
 
 export type SignalFeed = {
@@ -29,6 +84,103 @@ export type SignalFeed = {
   visible_count: number;
   has_locked_signals: boolean;
   signals: Signal[];
+};
+
+export type SetupSignalComponent = {
+  signal_key: string;
+  signal_type: string;
+  direction: "bullish" | "bearish" | "neutral";
+  score: number;
+  confidence: number;
+};
+
+export type Setup = {
+  setup_key: string;
+  setup_type: string;
+  asset_symbol: string;
+  direction: "bullish" | "bearish" | "neutral";
+  signal_keys: string[];
+  signals: SetupSignalComponent[];
+  headline: string;
+  execution_state?: ExecutionState | null;
+  execution_reason?: string | null;
+  summary?: string | null;
+  thesis: string;
+  thesis_short?: string | null;
+  score: number;
+  confidence: number;
+  model_score?: number | null;
+  confidence_pct?: number | null;
+  key_data?: SignalKeyData;
+  confirmations?: SignalConfirmation[];
+  action_plan?: SignalActionPlan;
+  data_quality_warnings?: SignalDataQualityWarning[];
+  is_mock_contaminated?: boolean;
+  is_trade_executable?: boolean;
+  generated_at: string;
+  source_snapshot_time?: string | null;
+  detail_level?: "teaser" | "full";
+  pro_plus_follow_up?: ProPlusFollowUp;
+};
+
+export type SetupFeedState = {
+  setups: Setup[];
+  source: "api" | "fallback" | "empty";
+  errorMessage: string | null;
+};
+
+export type SetupHistoryItem = {
+  id: string;
+  asset_symbol: string;
+  setup_key: string;
+  setup_type: string;
+  headline: string;
+  direction: "bullish" | "bearish" | "neutral";
+  status: "ACTIVE" | "TP1_HIT" | "TP2_HIT" | "INVALIDATED" | "EXPIRED";
+  execution_state: ExecutionState;
+  score: number;
+  confidence: number;
+  summary?: string | null;
+  entry?: number | null;
+  tp1?: number | null;
+  tp2?: number | null;
+  invalidation?: number | null;
+  current_price?: number | null;
+  is_mock_contaminated?: boolean;
+  created_at: string;
+  updated_at?: string | null;
+  detail_level: "teaser" | "full";
+};
+
+export type SetupHistoryState = {
+  setups: SetupHistoryItem[];
+  source: "api" | "fallback" | "empty";
+  errorMessage: string | null;
+};
+
+export type SetupPerformanceBucket = {
+  setup_key: string;
+  setup_type: string;
+  total: number;
+  tp1_hit_pct: number;
+  tp2_hit_pct: number;
+  invalidated_pct: number;
+};
+
+export type SetupPerformance = {
+  total_setups: number;
+  active: number;
+  tp1_hit_pct: number;
+  tp2_hit_pct: number;
+  invalidated_pct: number;
+  avg_time_to_tp1_hours: number;
+  by_setup_type: SetupPerformanceBucket[];
+};
+
+export type SetupPerformanceState = {
+  performance: SetupPerformance;
+  source: "api" | "fallback" | "empty";
+  errorMessage: string | null;
 };
 
 export type MarketSnapshot = {
@@ -255,6 +407,242 @@ const fallbackSignalFeed: SignalFeed = {
   signals: fallbackSignals.slice(0, 2)
 };
 
+export const fallbackSetups: Setup[] = [
+  {
+    setup_key: "trend_continuation",
+    setup_type: "Trend Continuation",
+    asset_symbol: "BTC",
+    direction: "bullish",
+    signal_keys: ["volume_spike", "range_breakout"],
+    signals: [
+      {
+        signal_key: "volume_spike",
+        signal_type: "Volume Spike",
+        direction: "bullish",
+        score: 8.8,
+        confidence: 83
+      },
+      {
+        signal_key: "range_breakout",
+        signal_type: "Range Breakout",
+        direction: "bullish",
+        score: 8.6,
+        confidence: 80
+      }
+    ],
+    headline: "BTC — Trend Continuation",
+    execution_state: "EXECUTABLE",
+    execution_reason:
+      "La confluencia alinea volumen anómalo, ruptura de estructura y niveles indicativos utilizables para una ejecución táctica.",
+    summary:
+      "BTC alinea volumen anómalo y ruptura de estructura en sesgo bullish. La confluencia ya tiene trigger e invalidación indicativos. Plan base: actuar solo si mantiene la ruptura y respeta la invalidación.",
+    thesis:
+      "BTC alinea volumen anómalo y ruptura de estructura en sesgo bullish, una combinación típica de continuación táctica cuando el flujo sigue acompañando.",
+    thesis_short:
+      "BTC alinea volumen anómalo y ruptura de estructura en sesgo bullish, una combinación típica de continuación táctica.",
+    score: 8,
+    confidence: 82.7,
+    model_score: 8,
+    confidence_pct: 82.7,
+    key_data: {
+      price: 68420.45,
+      change_24h: 3.4,
+      volume_24h: 31200000000,
+      funding: 0.009,
+      oi_change_24h: 5.2,
+      timeframe_base: "1D",
+      source: "binance+bybit"
+    },
+    confirmations: [
+      { label: "Volumen anómalo", severity: "positive" },
+      { label: "Expansión direccional confirmada", severity: "positive" },
+      { label: "Momentum acompaña", severity: "positive" },
+      { label: "OI acompaña la tesis", severity: "positive" }
+    ],
+    action_plan: {
+      action_now: "enter",
+      bias: "bullish",
+      trigger_level: 68557,
+      invalidation_level: 67216,
+      tp1: 69926,
+      tp2: 70952,
+      levels_are_indicative: true,
+      note:
+        "Niveles indicativos del MVP construidos con precio actual, rango 20d y tipo de setup. No son niveles de ejecución automática."
+    },
+    data_quality_warnings: [
+      {
+        code: "timeframe_misaligned",
+        message: "Los timeframes de las señales base no están perfectamente alineados con el snapshot agregado.",
+        severity: "warning"
+      }
+    ],
+    is_mock_contaminated: false,
+    is_trade_executable: true,
+    generated_at: new Date().toISOString(),
+    source_snapshot_time: new Date().toISOString(),
+    detail_level: "full",
+    pro_plus_follow_up: null
+  },
+  {
+    setup_key: "positioning_trap",
+    setup_type: "Positioning Trap",
+    asset_symbol: "SOL",
+    direction: "bearish",
+    signal_keys: ["oi_divergence", "funding_extreme"],
+    signals: [
+      {
+        signal_key: "oi_divergence",
+        signal_type: "OI Divergence",
+        direction: "bearish",
+        score: 7.7,
+        confidence: 72
+      },
+      {
+        signal_key: "funding_extreme",
+        signal_type: "Funding Extreme",
+        direction: "bearish",
+        score: 8.2,
+        confidence: 76
+      }
+    ],
+    headline: "SOL — Positioning Trap",
+    execution_state: "WATCHLIST",
+    execution_reason:
+      "La estructura es sólida y merece seguimiento, pero todavía no conviene tratarla como entrada inmediata.",
+    summary:
+      "SOL combina divergencia de OI y exceso de funding en dirección bearish. La tesis es clara, pero conviene esperar mejor activación. Plan base: vigilar trigger e invalidación antes de abrir riesgo.",
+    thesis:
+      "SOL presenta divergencia entre precio y open interest junto con crowded positioning, una señal de positioning failure que puede terminar en resolución bearish.",
+    thesis_short:
+      "SOL presenta divergencia entre precio y open interest junto con crowded positioning, una señal de positioning failure.",
+    score: 7.6,
+    confidence: 74.3,
+    model_score: 7.6,
+    confidence_pct: 74.3,
+    key_data: {
+      price: 171.89,
+      change_24h: 4.5,
+      volume_24h: 6200000000,
+      funding: 0.031,
+      oi_change_24h: 11.4,
+      timeframe_base: "1D",
+      source: "mock"
+    },
+    confirmations: [
+      { label: "Divergencia precio/OI visible", severity: "positive" },
+      { label: "Funding en extremo", severity: "positive" },
+      { label: "Momentum acompaña", severity: "positive" }
+    ],
+    action_plan: {
+      action_now: "wait",
+      bias: "bearish",
+      trigger_level: 171.37,
+      invalidation_level: 177.1,
+      tp1: 167.93,
+      tp2: 162.21,
+      levels_are_indicative: true,
+      note:
+        "Niveles indicativos del MVP construidos con precio actual, rango 20d y tipo de setup. No son niveles de ejecución automática."
+    },
+    data_quality_warnings: [
+      {
+        code: "mock_contamination",
+        message: "Parte del contexto usa fallback mock o defaults del MVP. No lo trates como setup fully validated.",
+        severity: "negative"
+      }
+    ],
+    is_mock_contaminated: true,
+    is_trade_executable: false,
+    generated_at: new Date().toISOString(),
+    source_snapshot_time: new Date().toISOString(),
+    detail_level: "full",
+    pro_plus_follow_up: null
+  }
+];
+
+const fallbackSetupsHistory: SetupHistoryItem[] = [
+  {
+    id: "hist-btc-trend",
+    asset_symbol: "BTC",
+    setup_key: "trend_continuation",
+    setup_type: "Trend Continuation",
+    headline: "BTC — Trend Continuation",
+    direction: "bullish",
+    status: "TP1_HIT",
+    execution_state: "EXECUTABLE",
+    score: 8,
+    confidence: 82.7,
+    summary: "Setup ejecutado con continuación limpia y primer objetivo alcanzado.",
+    entry: 68557,
+    tp1: 69926,
+    tp2: 70952,
+    invalidation: 67216,
+    current_price: 70124,
+    is_mock_contaminated: false,
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+    detail_level: "full"
+  },
+  {
+    id: "hist-sol-trap",
+    asset_symbol: "SOL",
+    setup_key: "positioning_trap",
+    setup_type: "Positioning Trap",
+    headline: "SOL — Positioning Trap",
+    direction: "bearish",
+    status: "INVALIDATED",
+    execution_state: "EXECUTABLE",
+    score: 7.9,
+    confidence: 76.1,
+    summary: "El setup perdió la estructura y quedó invalidado.",
+    entry: 171.37,
+    tp1: 167.93,
+    tp2: 162.21,
+    invalidation: 177.1,
+    current_price: 178.4,
+    is_mock_contaminated: true,
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 30).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    detail_level: "full"
+  }
+];
+
+const fallbackSetupsPerformance: SetupPerformance = {
+  total_setups: 18,
+  active: 4,
+  tp1_hit_pct: 44.4,
+  tp2_hit_pct: 22.2,
+  invalidated_pct: 16.7,
+  avg_time_to_tp1_hours: 9.5,
+  by_setup_type: [
+    {
+      setup_key: "trend_continuation",
+      setup_type: "Trend Continuation",
+      total: 8,
+      tp1_hit_pct: 50,
+      tp2_hit_pct: 25,
+      invalidated_pct: 12.5
+    },
+    {
+      setup_key: "positioning_trap",
+      setup_type: "Positioning Trap",
+      total: 6,
+      tp1_hit_pct: 33.3,
+      tp2_hit_pct: 16.7,
+      invalidated_pct: 33.3
+    },
+    {
+      setup_key: "squeeze_reversal",
+      setup_type: "Squeeze Reversal",
+      total: 4,
+      tp1_hit_pct: 50,
+      tp2_hit_pct: 25,
+      invalidated_pct: 0
+    }
+  ]
+};
+
 const fallbackMarketSnapshots: MarketSnapshot[] = [
   {
     symbol: "BTC",
@@ -411,6 +799,107 @@ export function getSignals(token?: string | null) {
 
 export function getSignalFeed(token?: string | null) {
   return requestJson<SignalFeed>("/signals/feed", { token, fallback: fallbackSignalFeed });
+}
+
+export async function getSignalSetups(
+  token?: string | null,
+  plan: UserProfile["plan"] | SignalFeed["access_plan"] = "free"
+): Promise<SetupFeedState> {
+  try {
+    const setups = await requestJson<Setup[]>("/signals/setups", { token });
+    return {
+      setups,
+      source: "api",
+      errorMessage: null
+    };
+  } catch {
+    if (plan === "free") {
+      return {
+        setups: fallbackSetups.slice(0, 2),
+        source: "fallback",
+        errorMessage: "Mostrando una vista de ejemplo temporal mientras el backend de setups no responde."
+      };
+    }
+
+    return {
+      setups: [],
+      source: "empty",
+      errorMessage: "Setups PRO no disponibles temporalmente. Las señales base siguen operativas."
+    };
+  }
+}
+
+export async function getSetupsHistory(
+  token?: string | null,
+  plan: UserProfile["plan"] | SignalFeed["access_plan"] = "free"
+): Promise<SetupHistoryState> {
+  try {
+    const setups = await requestJson<SetupHistoryItem[]>("/signals/setups/history", { token });
+    return {
+      setups,
+      source: "api",
+      errorMessage: null
+    };
+  } catch {
+    if (plan === "free") {
+      return {
+        setups: fallbackSetupsHistory.slice(0, 2).map((setup) => ({
+          ...setup,
+          detail_level: "teaser",
+          summary: null,
+          entry: null,
+          tp1: null,
+          tp2: null,
+          invalidation: null,
+          current_price: null
+        })),
+        source: "fallback",
+        errorMessage: "Mostrando una vista de ejemplo del histórico mientras la API no responde."
+      };
+    }
+
+    return {
+      setups: [],
+      source: "empty",
+      errorMessage: "Histórico de setups no disponible temporalmente."
+    };
+  }
+}
+
+export async function getSetupsPerformance(
+  token?: string | null,
+  plan: UserProfile["plan"] | SignalFeed["access_plan"] = "free"
+): Promise<SetupPerformanceState> {
+  try {
+    const performance = await requestJson<SetupPerformance>("/signals/setups/performance", { token });
+    return {
+      performance,
+      source: "api",
+      errorMessage: null
+    };
+  } catch {
+    if (plan === "free") {
+      return {
+        performance: { ...fallbackSetupsPerformance, by_setup_type: [] },
+        source: "fallback",
+        errorMessage: "Mostrando una vista teaser de performance mientras la API no responde."
+      };
+    }
+
+    return {
+      performance: {
+        total_setups: 0,
+        active: 0,
+        tp1_hit_pct: 0,
+        tp2_hit_pct: 0,
+        invalidated_pct: 0,
+        avg_time_to_tp1_hours: 0,
+        by_setup_type: []
+      },
+      source: "empty",
+      errorMessage: "Métricas de performance no disponibles temporalmente."
+    };
+  }
 }
 
 export function getMarketSnapshots(token?: string | null) {

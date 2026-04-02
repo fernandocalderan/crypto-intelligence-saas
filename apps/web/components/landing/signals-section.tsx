@@ -1,43 +1,45 @@
 import { Section } from "../section";
 
-const signals = [
-  {
-    name: "Volume Spike",
-    description: "Detecta expansión de flujo frente a la media reciente."
-  },
-  {
-    name: "Range Breakout",
-    description: "Señala rupturas con contexto de rango y confirmación."
-  },
-  {
-    name: "Funding Extreme",
-    description: "Identifica desequilibrios de positioning en perps."
-  },
-  {
-    name: "OI Divergence",
-    description: "Mide divergencias entre precio y open interest."
-  },
-  {
-    name: "Liquidation Cluster",
-    description: "Resume eventos de limpieza de posicionamiento."
-  }
+const fitItems = [
+  "Trader discrecional que quiere setups mejor filtrados.",
+  "Operativa táctica o swing corto con necesidad de priorizar rápido.",
+  "Quien quiere ahorrar tiempo de análisis sin renunciar al criterio propio.",
+  "Usuario que valora contexto operativo, no solo un ping de mercado."
+];
+
+const notFitItems = [
+  "Scalping de segundos o ejecución ultra-rápida.",
+  "Trading automático o bots que abren y cierran posiciones.",
+  "Copy trading o delegar por completo la decisión.",
+  "Promesas de dinero fácil o precisión falsa de micro-timing."
 ];
 
 export default function SignalsSection() {
   return (
     <Section
-      id="senales"
-      eyebrow="Señales"
-      title="Cinco señales del MVP empaquetadas para vender criterio, no humo."
-      description="Cada señal tiene un rol claro dentro del producto y una explicación visible para que el usuario entienda qué está viendo."
+      id="para-quien"
+      eyebrow="Para quién es / no es"
+      title="Pensado para operadores tácticos. No para automatizar el mercado."
+      description="El producto ayuda a priorizar setups y a leer contexto. La ejecución y la gestión del riesgo siguen siendo del trader."
     >
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {signals.map((signal) => (
-          <article key={signal.name} className="surface p-6">
-            <h3 className="text-lg font-semibold text-ink">{signal.name}</h3>
-            <p className="mt-3 text-sm leading-7 text-haze">{signal.description}</p>
-          </article>
-        ))}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <article className="surface p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-moss">Sí es para</p>
+          <ul className="mt-5 space-y-4 text-base leading-7 text-haze">
+            {fitItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </article>
+
+        <article className="surface p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-red-200">No es para</p>
+          <ul className="mt-5 space-y-4 text-base leading-7 text-haze">
+            {notFitItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </article>
       </div>
     </Section>
   );

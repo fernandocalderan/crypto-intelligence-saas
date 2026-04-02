@@ -6,7 +6,9 @@ from config import get_settings
 from db.session import SessionLocal
 from services.alert_engine import process_alert_pipeline
 from services.market_data import ingest_market_snapshots
-from services.signal_engine import compute_signal_payloads
+from services.setup_engine import create_setups_from_views, list_active_setups, update_setups_status
+from services.setup_view import build_setup_views
+from services.signal_engine import compute_signal_and_setup_payloads
 from services.signal_persistence import persist_signals
 
 logger = logging.getLogger(__name__)
@@ -20,28 +22,47 @@ def run_market_data_job() -> None:
         if not snapshots:
             return
 
-        detected_signals = compute_signal_payloads(market_snapshots=snapshots)
+        detected_signals, detected_setups = compute_signal_and_setup_payloads(market_snapshots=snapshots)
         if not detected_signals:
             logger.info("Signal pipeline completed with no active signals")
-            return
+        logger.info("Confluence pipeline produced %s setups", len(detected_setups))
 
         snapshot_index = {str(snapshot["symbol"]).upper(): snapshot for snapshot in snapshots}
         with SessionLocal() as session:
-            new_signals = persist_signals(
-                session,
-                detected_signals,
-                snapshot_index=snapshot_index,
+            active_setups = list_active_setups(session)
+            if active_setups:
+                setup_update_result = update_setups_status(active_setups, snapshot_index, session)
+                logger.info(
+                    "Setup lifecycle result updated=%s expired=%s",
+                    setup_update_result["updated"],
+                    setup_update_result["expired"],
+                )
+
+            new_signals = (
+                persist_signals(
+                    session,
+                    detected_signals,
+                    snapshot_index=snapshot_index,
+                )
+                if detected_signals
+                else []
             )
             if not new_signals:
                 logger.info("No new signals persisted for this scheduler run")
-                return
+            else:
+                logger.info("Signal pipeline persisted %s new signals", len(new_signals))
 
-            logger.info("Signal pipeline persisted %s new signals", len(new_signals))
+            setup_views = build_setup_views(detected_setups, snapshots, plan="pro") if detected_setups else []
+            new_setups = create_setups_from_views(setup_views, session) if setup_views else []
+            if new_setups:
+                logger.info("Setup pipeline persisted %s new executable setups", len(new_setups))
+
             settings = get_settings()
-            if settings.alerts_process_on_scheduler:
+            if settings.alerts_process_on_scheduler and new_signals:
                 alert_result = process_alert_pipeline(
                     session,
                     new_signals,
+                    detected_signals=detected_signals,
                     market_snapshots=snapshots,
                 )
                 logger.info(

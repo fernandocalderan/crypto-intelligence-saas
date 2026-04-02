@@ -63,6 +63,43 @@ class SignalRecord(Base):
     alert_deliveries: Mapped[list["AlertDeliveryRecord"]] = relationship(back_populates="signal")
 
 
+class SetupRecord(Base):
+    __tablename__ = "setups"
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    asset_symbol: Mapped[str] = mapped_column(String(20), index=True)
+    setup_key: Mapped[str] = mapped_column(String(120), index=True)
+    setup_type: Mapped[str] = mapped_column(String(120))
+    direction: Mapped[str] = mapped_column(String(20), index=True)
+    signal_keys: Mapped[list[str]] = mapped_column(JSON, default=list)
+    signal_hashes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    headline: Mapped[str] = mapped_column(String(255))
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    score: Mapped[float] = mapped_column(Float)
+    confidence: Mapped[float] = mapped_column(Float)
+    execution_state: Mapped[str] = mapped_column(String(40), index=True)
+    execution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trigger_level: Mapped[float | None] = mapped_column(Float, nullable=True)
+    invalidation_level: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tp1: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tp2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(String(30), index=True, default="ACTIVE")
+    is_mock_contaminated: Mapped[bool] = mapped_column(Boolean, default=False)
+    snapshot_data: Mapped[dict] = mapped_column(JSON, default=dict)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    source_snapshot_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    tp1_hit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tp2_hit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class MarketSnapshotRecord(Base):
     __tablename__ = "market_snapshots"
 

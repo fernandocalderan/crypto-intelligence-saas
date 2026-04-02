@@ -32,6 +32,19 @@ SIGNAL_SCHEMA_INDEXES = [
     "CREATE UNIQUE INDEX IF NOT EXISTS ix_signals_signal_hash ON signals (signal_hash) WHERE signal_hash IS NOT NULL",
 ]
 
+SETUP_SCHEMA_PATCHES = [
+    "ALTER TABLE setups ADD COLUMN IF NOT EXISTS tp1_hit_at TIMESTAMPTZ",
+    "ALTER TABLE setups ADD COLUMN IF NOT EXISTS tp2_hit_at TIMESTAMPTZ",
+    "ALTER TABLE setups ADD COLUMN IF NOT EXISTS invalidated_at TIMESTAMPTZ",
+    "ALTER TABLE setups ADD COLUMN IF NOT EXISTS expired_at TIMESTAMPTZ",
+]
+
+SETUP_SCHEMA_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS ix_setups_status ON setups (status)",
+    "CREATE INDEX IF NOT EXISTS ix_setups_setup_key ON setups (setup_key)",
+    "CREATE INDEX IF NOT EXISTS ix_setups_asset_symbol ON setups (asset_symbol)",
+]
+
 
 def _patch_signal_schema() -> None:
     if engine.dialect.name != "postgresql":
@@ -109,9 +122,26 @@ def _patch_signal_schema() -> None:
             connection.execute(text(statement))
 
 
+def _patch_setup_schema() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = inspect(engine)
+    if "setups" not in inspector.get_table_names():
+        return
+
+    with engine.begin() as connection:
+        for statement in SETUP_SCHEMA_PATCHES:
+            connection.execute(text(statement))
+
+        for statement in SETUP_SCHEMA_INDEXES:
+            connection.execute(text(statement))
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _patch_signal_schema()
+    _patch_setup_schema()
 
     with SessionLocal() as session:
         existing_symbols = {

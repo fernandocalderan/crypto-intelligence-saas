@@ -2,9 +2,10 @@ import sys
 from pathlib import Path
 
 from config import get_settings
-from models.schemas import SignalFeedResponse, SignalResponse
+from models.schemas import ConfluenceSetupResponse, ProSignalResponse, SignalFeedResponse
 from services.market_data import list_signal_market_snapshots
 from services.plans import PLAN_FREE, get_signal_limit, normalize_plan
+from services.pro_signal_view import build_pro_signal_views
 
 
 def _resolve_signal_engine_dir() -> Path:
@@ -40,21 +41,64 @@ def compute_signal_payloads(
 
 def _detect_live_signals(
     market_snapshots: list[dict] | None = None,
-) -> list[SignalResponse]:
-    return [SignalResponse(**signal) for signal in compute_signal_payloads(market_snapshots=market_snapshots)]
+) -> list[dict]:
+    return compute_signal_payloads(market_snapshots=market_snapshots)
 
 
-def list_live_signals(plan: str = PLAN_FREE) -> list[SignalResponse]:
-    active_signals = _detect_live_signals()
-    signal_limit = get_signal_limit(plan)
+def compute_signal_and_setup_payloads(
+    market_snapshots: list[dict] | None = None,
+) -> tuple[list[dict], list[dict]]:
+    snapshots = market_snapshots if market_snapshots is not None else list_signal_market_snapshots()
+    signal_payloads = compute_signal_payloads(market_snapshots=snapshots)
+
+    from services.confluence_engine import compute_confluence_setup_payloads
+
+    setup_payloads = compute_confluence_setup_payloads(
+        signal_payloads=signal_payloads,
+        market_snapshots=snapshots,
+    )
+    return signal_payloads, setup_payloads
+
+
+def _build_signal_views(plan: str = PLAN_FREE) -> list[ProSignalResponse]:
+    normalized_plan = normalize_plan(plan)
+    market_snapshots = list_signal_market_snapshots()
+    active_signals = _detect_live_signals(market_snapshots=market_snapshots)
+    signal_views = build_pro_signal_views(active_signals, market_snapshots, plan=normalized_plan)
+    signal_limit = get_signal_limit(normalized_plan)
     if signal_limit is None:
-        return active_signals
-    return active_signals[:signal_limit]
+        return signal_views
+    return signal_views[:signal_limit]
+
+
+def list_live_signals(plan: str = PLAN_FREE) -> list[ProSignalResponse]:
+    return _build_signal_views(plan=plan)
+
+
+def list_live_setups(plan: str = PLAN_FREE) -> list[ConfluenceSetupResponse]:
+    normalized_plan = normalize_plan(plan)
+    market_snapshots = list_signal_market_snapshots()
+    signal_payloads, _setup_payloads = compute_signal_and_setup_payloads(market_snapshots=market_snapshots)
+    if not signal_payloads:
+        return []
+
+    from services.confluence_engine import build_confluence_setup_views
+
+    return build_confluence_setup_views(
+        signal_payloads=signal_payloads,
+        market_snapshots=market_snapshots,
+        plan=normalized_plan,
+    )
 
 
 def get_signal_feed(plan: str = PLAN_FREE) -> SignalFeedResponse:
-    active_signals = _detect_live_signals()
     normalized_plan = normalize_plan(plan)
+    market_snapshots = list_signal_market_snapshots()
+    active_signals = build_pro_signal_views(
+        _detect_live_signals(market_snapshots=market_snapshots),
+        market_snapshots,
+        plan=normalized_plan,
+    )
     signal_limit = get_signal_limit(normalized_plan)
     visible_signals = active_signals if signal_limit is None else active_signals[:signal_limit]
     return SignalFeedResponse(
@@ -66,5 +110,5 @@ def get_signal_feed(plan: str = PLAN_FREE) -> SignalFeedResponse:
     )
 
 
-def list_signals() -> list[SignalResponse]:
+def list_signals() -> list[ProSignalResponse]:
     return list_live_signals()

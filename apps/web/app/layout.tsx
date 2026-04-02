@@ -15,8 +15,18 @@ const bodyFont = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Crypto Intelligence",
-  description: "Crypto intelligence workspace for institutional-grade signals."
+  title: {
+    default: "Crypto Intelligence | Setups PRO crypto con alertas Telegram",
+    template: "%s | Crypto Intelligence"
+  },
+  description:
+    "Plataforma de Setups PRO crypto para trading táctico: confluencia, estado operativo, confirmaciones, plan indicativo, alertas Telegram y dashboard con histórico.",
+  openGraph: {
+    title: "Crypto Intelligence | Setups PRO crypto con alertas Telegram",
+    description:
+      "Setups PRO accionables para trading táctico y swing corto. Menos ruido, más contexto operativo y alertas inmediatas por Telegram.",
+    type: "website"
+  }
 };
 
 export default function RootLayout({
@@ -38,4 +48,3 @@ export default function RootLayout({
     </html>
   );
 }
-

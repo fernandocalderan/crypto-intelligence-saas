@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { PricingCard } from "../../components/pricing-card";
 import { getSessionUser } from "../../lib/server-session";
 import { marketingPlans } from "../../lib/plans";
@@ -9,6 +11,17 @@ type PricingPageProps = {
   };
 };
 
+export const metadata: Metadata = {
+  title: "Pricing de Setups PRO",
+  description:
+    "Compara Free, Pro y Pro+ para acceder a Setups PRO crypto, alertas Telegram y dashboard con contexto operativo e histórico visible.",
+  openGraph: {
+    title: "Pricing de Setups PRO",
+    description:
+      "Free para probar el formato. Pro para desbloquear setups completos y alertas Telegram. Pro+ para la capa premium futura."
+  }
+};
+
 export default async function PricingPage({ searchParams }: PricingPageProps) {
   const user = await getSessionUser();
   const selectedPlan = searchParams?.plan ?? null;
@@ -18,10 +31,10 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
     <div className="space-y-10 py-10">
       <section className="space-y-4">
         <span className="eyebrow">Pricing</span>
-        <h1 className="section-title max-w-3xl">Planes simples para validar conversión y monetizar el feed del MVP.</h1>
+        <h1 className="section-title max-w-3xl">Planes alineados con el producto real: Setups PRO, Telegram y dashboard operativo.</h1>
         <p className="max-w-2xl text-base leading-7 text-haze">
-          Free sirve para evaluar el formato. Pro y Pro+ desbloquean el acceso completo y ayudan a medir intención real
-          de pago con Stripe.
+          Free deja probar el formato. Pro desbloquea el setup completo con contexto operativo y Telegram. Pro+ mantiene
+          ese acceso y reserva la siguiente capa premium de seguimiento.
         </p>
       </section>
 

@@ -5,6 +5,7 @@ from funding_extreme import detect as detect_funding_extreme
 from liquidation_cluster import detect as detect_liquidation_cluster
 from oi_divergence import detect as detect_oi_divergence
 from range_breakout import detect as detect_range_breakout
+from confluence import detect_confluence_setups, group_signals_by_asset
 from volume_spike import detect as detect_volume_spike
 
 Detector = Callable[[MarketSnapshot], SignalPayload | None]
@@ -53,3 +54,13 @@ def detect_active_signals(
 
     return active_signals
 
+
+def detect_active_setups(
+    market_data: list[MarketSnapshot],
+    enabled_signals: dict[str, bool] | None = None,
+) -> list[dict]:
+    active_signals = detect_active_signals(market_data, enabled_signals=enabled_signals)
+    return detect_confluence_setups(
+        group_signals_by_asset(active_signals),
+        market_snapshots=market_data,
+    )

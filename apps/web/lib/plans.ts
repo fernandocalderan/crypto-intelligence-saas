@@ -16,28 +16,28 @@ export const marketingPlans: MarketingPlan[] = [
     name: "Free",
     price: "0€",
     cadence: "/mes",
-    eyebrow: "Validación",
-    description: "Para evaluar el enfoque, recibir una muestra de señales y entender el formato antes de pagar.",
+    eyebrow: "Teaser",
+    description: "Para probar el feed, entender el formato de Setups PRO y ver cómo se presenta el contexto antes del upgrade.",
     bullets: [
-      "Hasta 2 señales visibles",
-      "Snapshot de mercado y dashboard base",
-      "Acceso a copy y tesis resumida"
+      "Vista teaser de setups y señales base",
+      "Acceso limitado al dashboard y al histórico visible",
+      "Ideal para validar si el formato encaja con tu operativa"
     ],
-    cta: "Crear cuenta"
+    cta: "Probar el feed"
   },
   {
     slug: "pro",
     name: "Pro",
     price: "39€",
     cadence: "/mes",
-    eyebrow: "Core plan",
-    description: "Acceso completo al feed del MVP con scoring, tesis y contexto suficiente para tomar decisiones propias.",
+    eyebrow: "Core",
+    description: "Acceso completo a Setups PRO con estado operativo, confirmaciones, plan indicativo y alertas inmediatas por Telegram.",
     bullets: [
-      "Todas las señales activas del MVP",
-      "Tesis, evidencia y score completos",
-      "Acceso continuo al dashboard"
+      "Setups completos con score, confianza y estado operativo",
+      "Confirmaciones, trigger, invalidación y objetivos indicativos",
+      "Alertas Telegram y acceso al histórico visible de setups"
     ],
-    cta: "Pasar a Pro",
+    cta: "Desbloquear setups completos",
     featured: true
   },
   {
@@ -45,13 +45,13 @@ export const marketingPlans: MarketingPlan[] = [
     name: "Pro+",
     price: "99€",
     cadence: "/mes",
-    eyebrow: "Power users",
-    description: "Para operadores que quieren el mismo feed más prioridad en nuevas capas de producto y soporte beta.",
+    eyebrow: "Premium",
+    description: "La misma capa completa de Setups PRO, con espacio reservado para seguimiento premium y futuras capas de performance avanzada.",
     bullets: [
       "Todo lo incluido en Pro",
-      "Prioridad en nuevas señales beta",
-      "Acceso temprano a mejoras del panel"
+      "Breakdown ampliado y prioridad sobre futuras capas premium",
+      "Preparado para seguimiento operativo más profundo"
     ],
-    cta: "Ir a Pro+"
+    cta: "Acceder a alertas Telegram"
   }
 ];

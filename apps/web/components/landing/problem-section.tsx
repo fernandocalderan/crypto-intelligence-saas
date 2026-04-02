@@ -1,9 +1,9 @@
 import { Section } from "../section";
 
 const painPoints = [
-  "El mercado genera demasiadas alertas sin jerarquía ni contexto útil para decidir.",
-  "Muchos dashboards enseñan precio, pero no explican por qué una señal merece atención.",
-  "Monetizar inteligencia crypto falla cuando el usuario no entiende qué está pagando exactamente."
+  "La mayoría de alerts cripto llegan sin jerarquía, sin contexto y sin decir si realmente merece actuar.",
+  "Una señal aislada no te dice si estás ante un setup operable, una watchlist o algo que debes descartar.",
+  "Cuando el dato es débil o viene contaminado por heurísticas, esconderlo rompe confianza y empeora la decisión."
 ];
 
 export default function ProblemSection() {
@@ -11,8 +11,8 @@ export default function ProblemSection() {
     <Section
       id="problema"
       eyebrow="Problema"
-      title="Un trader no paga por más ruido. Paga por un mejor filtro."
-      description="La fricción no suele estar en conseguir datos. Está en ordenarlos, priorizarlos y presentarlos de forma que el usuario entienda rápido qué setup merece tiempo."
+      title="El problema no es conseguir señales. Es filtrar cuáles merecen tiempo y riesgo."
+      description="Crypto Intelligence parte de una idea simple: un operador no necesita más ruido. Necesita setups priorizados, con contexto operativo y con una explicación honesta de la calidad del dato."
     >
       <div className="grid gap-4 lg:grid-cols-3">
         {painPoints.map((item, index) => (
