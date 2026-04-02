@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
@@ -18,6 +18,8 @@ class UserRecord(Base):
 
     signals: Mapped[list["SignalRecord"]] = relationship(back_populates="user")
     subscriptions: Mapped[list["SubscriptionRecord"]] = relationship(back_populates="user")
+    alert_subscriptions: Mapped[list["AlertSubscriptionRecord"]] = relationship(back_populates="user")
+    alert_deliveries: Mapped[list["AlertDeliveryRecord"]] = relationship(back_populates="user")
 
 
 class AssetRecord(Base):
@@ -38,18 +40,27 @@ class SignalRecord(Base):
     __tablename__ = "signals"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    public_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
-    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id"), index=True)
+    public_id: Mapped[str | None] = mapped_column(String(120), unique=True, nullable=True, index=True)
+    asset_id: Mapped[int | None] = mapped_column(ForeignKey("assets.id"), nullable=True, index=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    asset_symbol: Mapped[str] = mapped_column(String(20), index=True)
+    signal_key: Mapped[str] = mapped_column(String(120), index=True)
     signal_type: Mapped[str] = mapped_column(String(120))
-    timeframe: Mapped[str] = mapped_column(String(20))
+    timeframe: Mapped[str] = mapped_column(String(20), index=True)
+    direction: Mapped[str | None] = mapped_column(String(20), nullable=True)
     confidence: Mapped[float] = mapped_column(Float)
     score: Mapped[float] = mapped_column(Float)
     thesis: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    evidence_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    source: Mapped[str] = mapped_column(String(80), default="runtime")
+    source_snapshot_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    signal_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, server_default=func.now())
 
     asset: Mapped["AssetRecord"] = relationship(back_populates="signals")
     user: Mapped[UserRecord | None] = relationship(back_populates="signals")
+    alert_deliveries: Mapped[list["AlertDeliveryRecord"]] = relationship(back_populates="signal")
 
 
 class MarketSnapshotRecord(Base):
@@ -111,3 +122,47 @@ class SubscriptionRecord(Base):
     )
 
     user: Mapped["UserRecord"] = relationship(back_populates="subscriptions")
+
+
+class AlertSubscriptionRecord(Base):
+    __tablename__ = "alert_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "channel", name="uq_alert_subscriptions_user_channel"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    channel: Mapped[str] = mapped_column(String(20), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    min_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    min_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    user: Mapped["UserRecord"] = relationship(back_populates="alert_subscriptions")
+
+
+class AlertDeliveryRecord(Base):
+    __tablename__ = "alert_deliveries"
+    __table_args__ = (
+        UniqueConstraint("signal_id", "user_id", "channel", name="uq_alert_deliveries_signal_user_channel"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    signal_id: Mapped[int] = mapped_column(ForeignKey("signals.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    channel: Mapped[str] = mapped_column(String(20), index=True)
+    delivery_status: Mapped[str] = mapped_column(String(20), index=True)
+    provider_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    signal: Mapped["SignalRecord"] = relationship(back_populates="alert_deliveries")
+    user: Mapped["UserRecord"] = relationship(back_populates="alert_deliveries")

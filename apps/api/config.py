@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     enable_funding_extreme_signal: bool = True
     enable_oi_divergence_signal: bool = True
     enable_liquidation_cluster_signal: bool = True
+    enable_alerts: bool = True
+    enable_telegram_alerts: bool = True
+    enable_email_alerts: bool = False
+    telegram_bot_token: str = ""
+    alert_min_score: float = 7.0
+    alert_min_confidence: float = 0.6
+    alert_dedupe_window_minutes: int = 5
+    alert_max_per_run: int = 50
+    alerts_process_on_scheduler: bool = True
 
     model_config = SettingsConfigDict(
         env_file=str(resolve_env_file()),

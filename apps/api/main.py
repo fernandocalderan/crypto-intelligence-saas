@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
 from db.init_db import init_db
+from routes.alerts import router as alerts_router
 from routes.auth import router as auth_router
 from routes.assets import router as assets_router
 from routes.billing import router as billing_router
@@ -37,6 +38,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(alerts_router)
 app.include_router(assets_router)
 app.include_router(signals_router)
 app.include_router(market_router)

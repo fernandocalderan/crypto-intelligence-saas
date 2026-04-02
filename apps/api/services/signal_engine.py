@@ -24,15 +24,24 @@ if str(SIGNAL_ENGINE_DIR) not in sys.path:
 from engine import detect_active_signals  # noqa: E402
 
 
-def _detect_live_signals() -> list[SignalResponse]:
+def compute_signal_payloads(
+    market_snapshots: list[dict] | None = None,
+) -> list[dict]:
     settings = get_settings()
+    snapshots = market_snapshots if market_snapshots is not None else list_signal_market_snapshots()
+    if not snapshots:
+        return []
 
-    market_snapshots = list_signal_market_snapshots()
-    active_signals = detect_active_signals(
-        market_snapshots,
+    return detect_active_signals(
+        snapshots,
         enabled_signals=settings.signal_flags,
     )
-    return [SignalResponse(**signal) for signal in active_signals]
+
+
+def _detect_live_signals(
+    market_snapshots: list[dict] | None = None,
+) -> list[SignalResponse]:
+    return [SignalResponse(**signal) for signal in compute_signal_payloads(market_snapshots=market_snapshots)]
 
 
 def list_live_signals(plan: str = PLAN_FREE) -> list[SignalResponse]:
@@ -46,7 +55,8 @@ def list_live_signals(plan: str = PLAN_FREE) -> list[SignalResponse]:
 def get_signal_feed(plan: str = PLAN_FREE) -> SignalFeedResponse:
     active_signals = _detect_live_signals()
     normalized_plan = normalize_plan(plan)
-    visible_signals = list_live_signals(normalized_plan)
+    signal_limit = get_signal_limit(normalized_plan)
+    visible_signals = active_signals if signal_limit is None else active_signals[:signal_limit]
     return SignalFeedResponse(
         access_plan=normalized_plan,
         total_available=len(active_signals),

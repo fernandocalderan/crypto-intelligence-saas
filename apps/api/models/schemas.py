@@ -29,6 +29,12 @@ class SignalResponse(BaseModel):
     generated_at: datetime
 
 
+class StoredSignalResponse(SignalResponse):
+    signal_hash: str
+    source_snapshot_time: datetime | None = None
+    is_active: bool = True
+
+
 class MarketSnapshotResponse(BaseModel):
     symbol: str
     name: str
@@ -114,3 +120,31 @@ class TrackEventRequest(BaseModel):
     event: str
     context: str | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class AlertsMeResponse(BaseModel):
+    plan: str
+    can_receive_alerts: bool
+    alerts_globally_enabled: bool
+    telegram_available: bool
+    email_available: bool
+    telegram_enabled: bool
+    email_enabled: bool
+    telegram_chat_id: str | None = None
+    telegram_configured: bool = False
+    email: str | None = None
+    email_configured: bool = False
+    min_score: float
+    min_confidence: float
+
+
+class TelegramConnectRequest(BaseModel):
+    telegram_chat_id: str
+    is_active: bool | None = True
+
+
+class AlertPreferencesRequest(BaseModel):
+    min_score: float | None = None
+    min_confidence: float | None = None
+    telegram_enabled: bool | None = None
+    email_enabled: bool | None = None

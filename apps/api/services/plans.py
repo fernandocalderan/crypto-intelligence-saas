@@ -9,6 +9,7 @@ PLAN_SIGNAL_LIMITS: dict[str, int | None] = {
 }
 
 CHECKOUT_ENABLED_PLANS = {PLAN_PRO, PLAN_PRO_PLUS}
+ALERT_ELIGIBLE_PLANS = {PLAN_PRO, PLAN_PRO_PLUS}
 
 
 def normalize_plan(plan: str | None) -> str:
@@ -35,3 +36,7 @@ def can_access_all_signals(plan: str | None) -> bool:
 
 def can_checkout(plan: str | None) -> bool:
     return normalize_plan(plan) in CHECKOUT_ENABLED_PLANS
+
+
+def can_receive_alerts(plan: str | None) -> bool:
+    return normalize_plan(plan) in ALERT_ELIGIBLE_PLANS

@@ -1,8 +1,15 @@
+import { AlertsSettingsCard } from "../../components/alerts-settings-card";
 import { LogoutButton } from "../../components/logout-button";
 import { SignalCard } from "../../components/signal-card";
 import { StatCard } from "../../components/stat-card";
 import { UpgradeBanner } from "../../components/upgrade-banner";
-import { confirmCheckout, getAssets, getMarketSnapshots, getSignalFeed } from "../../lib/api";
+import {
+  confirmCheckout,
+  getAssets,
+  getMarketSnapshots,
+  getMyAlerts,
+  getSignalFeed
+} from "../../lib/api";
 import { getSessionToken, getSessionUser } from "../../lib/server-session";
 
 const percentFormatter = new Intl.NumberFormat("en-US", {
@@ -57,10 +64,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     }
   }
 
-  const [assets, signalFeed, marketSnapshots] = await Promise.all([
+  const [assets, signalFeed, marketSnapshots, myAlerts] = await Promise.all([
     getAssets(token),
     getSignalFeed(token),
-    getMarketSnapshots(token)
+    getMarketSnapshots(token),
+    getMyAlerts(token)
   ]);
 
   const avgScore = signalFeed.signals.length
@@ -69,6 +77,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const hiddenSignals = Math.max(signalFeed.total_available - signalFeed.visible_count, 0);
   const isFreePlan = signalFeed.access_plan === "free";
   const lockedPreviewCount = hiddenSignals > 0 ? Math.min(hiddenSignals, 2) : 0;
+  const alertState = user
+    ? {
+        ...myAlerts,
+        plan: user.plan,
+        can_receive_alerts: user.plan !== "free"
+      }
+    : myAlerts;
 
   return (
     <div className="space-y-8 py-8">
@@ -101,6 +116,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
 
       {isFreePlan && hiddenSignals > 0 ? <UpgradeBanner hiddenSignals={hiddenSignals} /> : null}
+
+      <AlertsSettingsCard initialState={alertState} isAuthenticated={Boolean(user)} />
 
       <section className="surface p-6 sm:p-8">
         <div className="mb-6 flex items-center justify-between">

@@ -78,6 +78,34 @@ export type SubscriptionStatus = {
   cancel_at_period_end: boolean;
 };
 
+export type AlertSettings = {
+  plan: "free" | "pro" | "pro_plus";
+  can_receive_alerts: boolean;
+  alerts_globally_enabled: boolean;
+  telegram_available: boolean;
+  email_available: boolean;
+  telegram_enabled: boolean;
+  email_enabled: boolean;
+  telegram_chat_id: string | null;
+  telegram_configured: boolean;
+  email: string | null;
+  email_configured: boolean;
+  min_score: number;
+  min_confidence: number;
+};
+
+export type ConnectTelegramAlertsPayload = {
+  telegram_chat_id: string;
+  is_active?: boolean;
+};
+
+export type UpdateAlertPreferencesPayload = {
+  min_score?: number;
+  min_confidence?: number;
+  telegram_enabled?: boolean;
+  email_enabled?: boolean;
+};
+
 export const apiUrl =
   process.env.INTERNAL_API_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
@@ -293,6 +321,22 @@ const fallbackMarketSnapshots: MarketSnapshot[] = [
   }
 ];
 
+const fallbackAlertSettings: AlertSettings = {
+  plan: "free",
+  can_receive_alerts: false,
+  alerts_globally_enabled: true,
+  telegram_available: false,
+  email_available: false,
+  telegram_enabled: false,
+  email_enabled: false,
+  telegram_chat_id: null,
+  telegram_configured: false,
+  email: null,
+  email_configured: false,
+  min_score: 7,
+  min_confidence: 0.6
+};
+
 type RequestOptions<T> = {
   token?: string | null;
   method?: string;
@@ -364,4 +408,39 @@ export function confirmCheckout(sessionId: string, token: string) {
     token,
     body: { session_id: sessionId }
   });
+}
+
+export function getMyAlerts(token?: string | null) {
+  if (!token) {
+    return Promise.resolve(fallbackAlertSettings);
+  }
+  return requestJson<AlertSettings>("/alerts/me", {
+    token,
+    fallback: fallbackAlertSettings
+  });
+}
+
+async function requestProxyJson<T>(path: string, body?: unknown, method = "POST"): Promise<T> {
+  const response = await fetch(path, {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.detail ?? `Request failed for ${path}`);
+  }
+
+  return payload as T;
+}
+
+export function connectTelegramAlerts(payload: ConnectTelegramAlertsPayload) {
+  return requestProxyJson<AlertSettings>("/api/alerts/telegram/connect", payload);
+}
+
+export function updateAlertPreferences(payload: UpdateAlertPreferencesPayload) {
+  return requestProxyJson<AlertSettings>("/api/alerts/preferences", payload);
 }

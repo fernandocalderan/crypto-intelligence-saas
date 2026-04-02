@@ -6,3 +6,4 @@ pydantic-settings==2.6.1
 httpx==0.28.1
 apscheduler==3.10.4
 stripe==12.2.0
+pytest==8.3.4
