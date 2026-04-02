@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     stripe_price_starter: str = "price_starter_placeholder"
     stripe_price_pro: str = "price_pro_placeholder"
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    signal_engine_use_mock_data: bool = True
+    enable_volume_spike_signal: bool = True
+    enable_range_breakout_signal: bool = True
+    enable_funding_extreme_signal: bool = True
+    enable_oi_divergence_signal: bool = True
+    enable_liquidation_cluster_signal: bool = True
 
     model_config = SettingsConfigDict(
         env_file=str(resolve_env_file()),
@@ -41,6 +47,16 @@ class Settings(BaseSettings):
     @property
     def parsed_cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def signal_flags(self) -> dict[str, bool]:
+        return {
+            "volume_spike": self.enable_volume_spike_signal,
+            "range_breakout": self.enable_range_breakout_signal,
+            "funding_extreme": self.enable_funding_extreme_signal,
+            "oi_divergence": self.enable_oi_divergence_signal,
+            "liquidation_cluster": self.enable_liquidation_cluster_signal,
+        }
 
 
 @lru_cache

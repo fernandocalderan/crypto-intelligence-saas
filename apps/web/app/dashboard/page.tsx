@@ -26,7 +26,7 @@ export default async function DashboardPage() {
           <span className="eyebrow">Live Mock Dashboard</span>
           <h1 className="section-title">Monitoriza activos, convicción y setup del MVP.</h1>
           <p className="max-w-2xl text-base leading-7 text-haze">
-            La página consume el backend FastAPI y degrada con fallback local si el API no está disponible durante desarrollo.
+            La página consume el engine de señales en FastAPI y degrada con fallback local si el API no está disponible durante desarrollo.
           </p>
         </div>
       </section>
@@ -34,7 +34,7 @@ export default async function DashboardPage() {
       <section className="grid gap-5 md:grid-cols-3">
         <StatCard label="Tracked assets" value={String(assets.length)} accent="moss" />
         <StatCard label="Active signals" value={String(signals.length)} accent="tide" />
-        <StatCard label="Average score" value={percentFormatter.format(avgScore)} accent="ink" />
+        <StatCard label="Average score" value={`${percentFormatter.format(avgScore)}/10`} accent="ink" />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
@@ -89,10 +89,32 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   <div className="rounded-full border border-moss/25 bg-moss/10 px-3 py-1 text-sm font-semibold text-moss">
-                    Score {percentFormatter.format(signal.score)}
+                    Score {percentFormatter.format(signal.score)}/10
                   </div>
                 </div>
                 <p className="mt-4 text-sm leading-7 text-haze">{signal.thesis}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                      signal.direction === "bullish"
+                        ? "border-moss/30 bg-moss/10 text-moss"
+                        : "border-red-300/30 bg-red-300/10 text-red-200"
+                    }`}
+                  >
+                    {signal.direction}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-haze">
+                    {signal.source}
+                  </span>
+                  {signal.evidence.map((evidence) => (
+                    <span
+                      key={evidence}
+                      className="rounded-full border border-white/10 bg-black/10 px-3 py-1 text-xs text-haze"
+                    >
+                      {evidence}
+                    </span>
+                  ))}
+                </div>
                 <div className="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-[0.16em] text-haze">
                   <span>Confidence {percentFormatter.format(signal.confidence)}%</span>
                   <span>{new Date(signal.generated_at).toLocaleString()}</span>
@@ -105,4 +127,3 @@ export default async function DashboardPage() {
     </div>
   );
 }
-

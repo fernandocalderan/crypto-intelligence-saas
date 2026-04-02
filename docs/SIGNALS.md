@@ -4,35 +4,87 @@
 
 Un dashboard sin señales bien definidas no tiene valor comercial claro. El scoring debe estar definido antes de sofisticar la infraestructura.
 
-## Propuesta MVP: 5 señales
+## MVP implementado: 5 señales
 
-1. `Momentum Breakout`
-2. `Relative Strength`
-3. `Capital Rotation`
-4. `Funding + OI Stress`
-5. `Mean Reversion Exhaustion`
+1. `Volume Spike`
+2. `Range Breakout`
+3. `Funding Extreme`
+4. `OI Divergence`
+5. `Liquidation Cluster`
+
+## Módulos
+
+Los detectores viven en `packages/signal-engine/`:
+
+- `volume_spike.py`
+- `range_breakout.py`
+- `funding_extreme.py`
+- `oi_divergence.py`
+- `liquidation_cluster.py`
+- `scoring.py`
+- `formatter.py`
+- `engine.py`
+
+Cada detector expone `detect(data) -> signal | None`.
 
 ## Framework de scoring
 
-Cada señal debería devolver:
+- `score` se calcula de `1` a `10`
+- `confidence` se deriva del score y de la evidencia disponible
+- `engine.py` ordena señales por score/confidence y elimina duplicados por activo, tipo y timeframe
 
-- `score` de 0 a 100
-- `confidence` de 0 a 100
+## Output estándar
+
+Cada señal devuelve:
+
+- `id`
+- `signal_key`
+- `asset_symbol`
+- `signal_type`
 - `timeframe`
+- `direction`
+- `score`
+- `confidence`
 - `thesis`
-- `invalidates_if`
+- `evidence`
+- `source`
 - `generated_at`
 
-## Inputs sugeridos
+## Inputs usados por el MVP
 
-- estructura de precio
-- volumen relativo
-- open interest
-- funding rate
-- breadth del mercado
-- performance relativa frente a BTC y ETH
+- precio y cambio 24h
+- volumen 24h vs media
+- rango de 20 días
+- funding rate y z-score de funding
+- variación de open interest
+- liquidaciones 1h vs media
+- momentum score
+
+## Lógica resumida
+
+- `Volume Spike`: activa cuando el volumen supera claramente su baseline y el precio acompaña.
+- `Range Breakout`: activa cuando el precio sale del rango de 20 días con margen suficiente.
+- `Funding Extreme`: activa en extremos de funding y actúa de forma contrarian.
+- `OI Divergence`: activa cuando precio y open interest divergen de forma relevante.
+- `Liquidation Cluster`: activa tras limpieza agresiva de posicionamiento en una sola dirección.
+
+## Endpoint
+
+- `GET /signals/live`
+- `GET /signals` se mantiene como alias compatible
+
+## Rollback
+
+Cada señal se puede desactivar individualmente desde config/env:
+
+- `ENABLE_VOLUME_SPIKE_SIGNAL`
+- `ENABLE_RANGE_BREAKOUT_SIGNAL`
+- `ENABLE_FUNDING_EXTREME_SIGNAL`
+- `ENABLE_OI_DIVERGENCE_SIGNAL`
+- `ENABLE_LIQUIDATION_CLUSTER_SIGNAL`
+
+También se puede forzar el dataset mock con `SIGNAL_ENGINE_USE_MOCK_DATA=true`.
 
 ## Regla práctica
 
 Si no puedes explicar en una frase por qué la señal existe y por qué su score sube o baja, todavía no está lista para venderse.
-

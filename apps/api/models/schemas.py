@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AssetResponse(BaseModel):
@@ -15,12 +15,16 @@ class AssetResponse(BaseModel):
 
 class SignalResponse(BaseModel):
     id: str
+    signal_key: str
     asset_symbol: str
     signal_type: str
     timeframe: str
+    direction: str
     confidence: float
     score: float
     thesis: str
+    evidence: list[str] = Field(default_factory=list)
+    source: str = "mock"
     generated_at: datetime
 
 

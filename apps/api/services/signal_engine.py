@@ -1,43 +1,32 @@
-from datetime import datetime, timezone
+import sys
+from pathlib import Path
 
+from config import get_settings
 from models.schemas import SignalResponse
+from services.market_data import list_signal_market_snapshots
 
-NOW = datetime.now(timezone.utc)
+ROOT_DIR = Path(__file__).resolve().parents[3]
+SIGNAL_ENGINE_DIR = ROOT_DIR / "packages" / "signal-engine"
 
-MOCK_SIGNALS = [
-    SignalResponse(
-        id="sig-btc-breakout",
-        asset_symbol="BTC",
-        signal_type="Momentum Breakout",
-        timeframe="4H",
-        confidence=89.0,
-        score=92.0,
-        thesis="BTC rompe rango con expansión de volumen y funding todavía lejos de euforia.",
-        generated_at=NOW,
-    ),
-    SignalResponse(
-        id="sig-eth-rotation",
-        asset_symbol="ETH",
-        signal_type="Capital Rotation",
-        timeframe="1D",
-        confidence=76.0,
-        score=81.0,
-        thesis="ETH muestra rotación positiva frente a BTC mientras mejora el flujo hacia majors.",
-        generated_at=NOW,
-    ),
-    SignalResponse(
-        id="sig-sol-strength",
-        asset_symbol="SOL",
-        signal_type="Relative Strength",
-        timeframe="1D",
-        confidence=82.0,
-        score=86.0,
-        thesis="SOL mantiene liderazgo relativo frente al mercado amplio y confirma continuidad de tendencia.",
-        generated_at=NOW,
-    ),
-]
+if str(SIGNAL_ENGINE_DIR) not in sys.path:
+    sys.path.insert(0, str(SIGNAL_ENGINE_DIR))
+
+from engine import detect_active_signals  # noqa: E402
+
+
+def list_live_signals() -> list[SignalResponse]:
+    settings = get_settings()
+
+    if not settings.signal_engine_use_mock_data:
+        return []
+
+    market_snapshots = list_signal_market_snapshots()
+    active_signals = detect_active_signals(
+        market_snapshots,
+        enabled_signals=settings.signal_flags,
+    )
+    return [SignalResponse(**signal) for signal in active_signals]
 
 
 def list_signals() -> list[SignalResponse]:
-    return MOCK_SIGNALS
-
+    return list_live_signals()
