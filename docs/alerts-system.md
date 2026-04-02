@@ -113,6 +113,7 @@ Constraint principal:
 - `ENABLE_TELEGRAM_ALERTS`
 - `ENABLE_EMAIL_ALERTS`
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_BOT_USERNAME`
 - `ALERT_MIN_SCORE`
 - `ALERT_MIN_CONFIDENCE`
 - `ALERT_DEDUPE_WINDOW_MINUTES`
@@ -130,8 +131,19 @@ Configuración requerida:
 Endpoints:
 
 - `GET /alerts/me`
+- `GET /alerts/telegram/connect-instructions`
 - `POST /alerts/telegram/connect`
+- `POST /alerts/telegram/test`
 - `POST /alerts/preferences`
+
+Flujo implementado en dashboard:
+
+1. el usuario `pro` abre la card `Alertas PRO`
+2. despliega `Conectar Telegram`
+3. sigue las instrucciones del bot
+4. pega `telegram_chat_id` y vincula la cuenta
+5. puede enviar `Enviar prueba` aunque el canal todavía no esté activado
+6. después guarda `Activar alertas por Telegram`
 
 ## Umbrales
 
@@ -152,6 +164,8 @@ Esto permite mantener:
 - si un usuario no tiene chat id configurado, no se intenta el envío
 - si una entrega falla, se registra en `alert_deliveries`
 - si la misma señal ya fue enviada al mismo usuario por el mismo canal, se omite
+- si el usuario no inició el bot, la API devuelve un mensaje claro para pulsar `Start`
+- si el `chat_id` es inválido, la API devuelve error controlado para UI
 
 ## Limitaciones actuales
 
@@ -163,12 +177,19 @@ Esto permite mantener:
 
 ## Prueba manual recomendada
 
-1. arrancar Postgres y API
-2. registrar un usuario
-3. activar el usuario en plan `pro`
-4. conectar `telegram_chat_id`
-5. ejecutar una sincronización de market data
-6. verificar:
-   - nuevas filas en `signals`
-   - filas en `alert_deliveries`
-   - estado `sent` o `failed` según configuración del bot
+1. definir `TELEGRAM_BOT_TOKEN` y opcionalmente `TELEGRAM_BOT_USERNAME`
+2. arrancar Postgres y API
+3. registrar un usuario
+4. activar el usuario en plan `pro`
+5. abrir Telegram, buscar el bot y pulsar `Start`
+6. ir a dashboard y vincular `telegram_chat_id`
+7. pulsar `Enviar prueba`
+8. verificar recepción del mensaje o error controlado
+9. activar Telegram en preferencias y guardar
+
+Troubleshooting:
+
+- `Telegram no disponible temporalmente`: falta token o el canal está desactivado por flags
+- `Abre Telegram, busca el bot y pulsa Start`: el usuario no inició el bot o el chat no es accesible
+- `El chat ID de Telegram no es válido`: el valor pegado no es numérico o el backend lo rechaza
+- `El plan free no puede...`: el usuario necesita `pro` o `pro_plus`

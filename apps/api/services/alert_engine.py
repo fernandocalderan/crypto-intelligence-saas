@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -9,10 +10,17 @@ from sqlalchemy.orm import Session, selectinload
 from config import get_settings
 from db.session import SessionLocal
 from db.models import AlertDeliveryRecord, AlertSubscriptionRecord, SignalRecord, UserRecord
-from models.schemas import AlertsMeResponse
+from models.schemas import AlertsMeResponse, TelegramConnectInstructionsResponse, TelegramTestResponse
 from services.email_alert_service import format_email_alert_message, send_email_message
 from services.plans import can_receive_alerts, normalize_plan
-from services.telegram_service import format_signal_alert_message, send_telegram_message
+from services.telegram_service import (
+    TelegramServiceError,
+    format_signal_alert_message,
+    get_telegram_connect_instructions,
+    send_telegram_message,
+    send_telegram_test_message,
+    validate_telegram_chat_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +103,16 @@ def _build_settings_response(user: UserRecord, subscriptions: list[AlertSubscrip
     )
 
 
+def _require_alerts_plan(user: UserRecord, *, action_label: str) -> str:
+    normalized_plan = normalize_plan(user.plan)
+    if not can_receive_alerts(normalized_plan):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"El plan {normalized_plan} no puede {action_label}. Actualiza a Pro o Pro+.",
+        )
+    return normalized_plan
+
+
 def _load_user_with_alerts(db: Session, user_id: int) -> UserRecord:
     user = db.scalar(
         select(UserRecord)
@@ -134,16 +152,21 @@ def get_alert_settings_for_user(user: UserRecord) -> AlertsMeResponse:
         return _build_settings_response(persistent_user, persistent_user.alert_subscriptions)
 
 
+def get_telegram_connect_instructions_for_user(user: UserRecord) -> TelegramConnectInstructionsResponse:
+    return TelegramConnectInstructionsResponse(**get_telegram_connect_instructions())
+
+
 def upsert_telegram_subscription(
     user: UserRecord,
     *,
-    telegram_chat_id: str,
+    telegram_chat_id: str | int,
     is_active: bool | None = True,
 ) -> AlertsMeResponse:
     with SessionLocal() as db:
         persistent_user = _load_user_with_alerts(db, user.id)
+        _require_alerts_plan(persistent_user, action_label="conectar Telegram")
         subscription = _get_or_create_subscription(db, user=persistent_user, channel=CHANNEL_TELEGRAM)
-        subscription.telegram_chat_id = telegram_chat_id.strip()
+        subscription.telegram_chat_id = validate_telegram_chat_id(telegram_chat_id)
         if is_active is not None:
             subscription.is_active = bool(is_active)
         if subscription.min_score is None:
@@ -165,6 +188,8 @@ def update_user_alert_preferences(
 ) -> AlertsMeResponse:
     with SessionLocal() as db:
         persistent_user = _load_user_with_alerts(db, user.id)
+        if any(value is not None for value in (min_score, min_confidence, telegram_enabled, email_enabled)):
+            _require_alerts_plan(persistent_user, action_label="editar alertas push")
         telegram_subscription = _get_or_create_subscription(db, user=persistent_user, channel=CHANNEL_TELEGRAM)
         email_subscription = _get_or_create_subscription(db, user=persistent_user, channel=CHANNEL_EMAIL)
 
@@ -188,6 +213,63 @@ def update_user_alert_preferences(
         db.refresh(telegram_subscription)
         db.refresh(email_subscription)
         return _build_settings_response(persistent_user, persistent_user.alert_subscriptions)
+
+
+def send_telegram_test_for_user(user: UserRecord) -> TelegramTestResponse:
+    settings = get_settings()
+    if not settings.enable_alerts or not settings.enable_telegram_alerts:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Telegram no está disponible temporalmente en este entorno.",
+        )
+
+    with SessionLocal() as db:
+        persistent_user = _load_user_with_alerts(db, user.id)
+        normalized_plan = _require_alerts_plan(persistent_user, action_label="enviar una prueba de Telegram")
+        subscription = next(
+            (item for item in persistent_user.alert_subscriptions if item.channel == CHANNEL_TELEGRAM),
+            None,
+        )
+
+        if subscription is None or not subscription.telegram_chat_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Conecta Telegram antes de enviar una prueba.",
+            )
+
+        logger.info(
+            "Telegram manual test requested user_id=%s plan=%s telegram_enabled=%s",
+            persistent_user.id,
+            normalized_plan,
+            bool(subscription.is_active),
+        )
+
+        try:
+            payload = send_telegram_test_message(
+                subscription.telegram_chat_id,
+                persistent_user.email,
+                normalized_plan,
+            )
+        except TelegramServiceError as exc:
+            logger.warning(
+                "Telegram manual test failed user_id=%s error=%s code=%s",
+                persistent_user.id,
+                exc.detail,
+                exc.code,
+            )
+            raise HTTPException(status_code=exc.status_code, detail=exc.user_message) from exc
+
+        logger.info(
+            "Telegram manual test sent user_id=%s provider_message_id=%s",
+            persistent_user.id,
+            payload.get("message_id"),
+        )
+        return TelegramTestResponse(
+            detail="Mensaje de prueba enviado",
+            telegram_chat_id=subscription.telegram_chat_id,
+            telegram_enabled=bool(subscription.is_active),
+            provider_message_id=payload.get("message_id"),
+        )
 
 
 def get_eligible_users_for_alerts(db: Session) -> list[UserRecord]:

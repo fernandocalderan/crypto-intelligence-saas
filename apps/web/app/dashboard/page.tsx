@@ -8,6 +8,7 @@ import {
   getAssets,
   getMarketSnapshots,
   getMyAlerts,
+  getTelegramConnectInstructions,
   getSignalFeed
 } from "../../lib/api";
 import { getSessionToken, getSessionUser } from "../../lib/server-session";
@@ -64,11 +65,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     }
   }
 
-  const [assets, signalFeed, marketSnapshots, myAlerts] = await Promise.all([
+  const [assets, signalFeed, marketSnapshots, myAlerts, telegramInstructions] = await Promise.all([
     getAssets(token),
     getSignalFeed(token),
     getMarketSnapshots(token),
-    getMyAlerts(token)
+    getMyAlerts(token),
+    getTelegramConnectInstructions(token)
   ]);
 
   const avgScore = signalFeed.signals.length
@@ -117,7 +119,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       {isFreePlan && hiddenSignals > 0 ? <UpgradeBanner hiddenSignals={hiddenSignals} /> : null}
 
-      <AlertsSettingsCard initialState={alertState} isAuthenticated={Boolean(user)} />
+      <AlertsSettingsCard
+        initialState={alertState}
+        instructions={telegramInstructions}
+        isAuthenticated={Boolean(user)}
+      />
 
       <section className="surface p-6 sm:p-8">
         <div className="mb-6 flex items-center justify-between">

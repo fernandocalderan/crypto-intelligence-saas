@@ -53,7 +53,7 @@ API:
 - feed con gating por plan: `http://localhost:8000/signals/feed`
 - auth: `http://localhost:8000/auth/login`, `http://localhost:8000/auth/register`, `http://localhost:8000/auth/me`
 - billing: `http://localhost:8000/billing/checkout`, `http://localhost:8000/billing/confirm`
-- alertas: `http://localhost:8000/alerts/me`, `http://localhost:8000/alerts/telegram/connect`, `http://localhost:8000/alerts/preferences`
+ - alertas: `http://localhost:8000/alerts/me`, `http://localhost:8000/alerts/telegram/connect`, `http://localhost:8000/alerts/telegram/test`, `http://localhost:8000/alerts/telegram/connect-instructions`, `http://localhost:8000/alerts/preferences`
 
 ## Arranque con Docker
 
@@ -132,6 +132,7 @@ Alertas:
 - `ENABLE_TELEGRAM_ALERTS`
 - `ENABLE_EMAIL_ALERTS`
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_BOT_USERNAME`
 - `ALERT_MIN_SCORE`
 - `ALERT_MIN_CONFIDENCE`
 - `ALERT_DEDUPE_WINDOW_MINUTES`
@@ -184,6 +185,25 @@ Capacidades ya implementadas:
 
 - si usas credenciales y `price_id` reales de Stripe, desactiva `ENABLE_STRIPE_MOCK_CHECKOUT`
 - en desarrollo, `ENABLE_STRIPE_MOCK_CHECKOUT=true` permite probar registro, upgrade y acceso sin cobro real
+
+## Smoke Test Telegram
+
+1. define `TELEGRAM_BOT_TOKEN` y opcionalmente `TELEGRAM_BOT_USERNAME` en `.env`
+2. arranca el stack con `npm run dev` o `docker compose up --build`
+3. registra un usuario y súbelo a `pro` o `pro_plus`
+4. abre Telegram, busca tu bot y pulsa `Start`
+5. entra en `/dashboard`
+6. en `Alertas PRO > Telegram`, pega tu `telegram_chat_id` y pulsa `Conectar Telegram`
+7. activa `Activar alertas por Telegram` y guarda
+8. pulsa `Enviar prueba`
+9. verifica que el mensaje llegue al chat
+
+Troubleshooting mínimo:
+
+- si falta `TELEGRAM_BOT_TOKEN`, la UI mostrará `Telegram no disponible temporalmente`
+- si el bot no fue iniciado, la prueba devolverá un mensaje para pulsar `Start`
+- si el plan es `free`, el backend bloqueará conexión y prueba real
+- si el `chat_id` es inválido, la API devolverá un error controlado sin romper el dashboard
 
 ## Documentacion relevante
 

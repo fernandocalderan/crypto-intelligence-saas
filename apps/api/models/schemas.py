@@ -139,7 +139,7 @@ class AlertsMeResponse(BaseModel):
 
 
 class TelegramConnectRequest(BaseModel):
-    telegram_chat_id: str
+    telegram_chat_id: str | int
     is_active: bool | None = True
 
 
@@ -148,3 +148,18 @@ class AlertPreferencesRequest(BaseModel):
     min_confidence: float | None = None
     telegram_enabled: bool | None = None
     email_enabled: bool | None = None
+
+
+class TelegramTestResponse(BaseModel):
+    ok: bool = True
+    detail: str
+    telegram_chat_id: str
+    telegram_enabled: bool
+    provider_message_id: str | None = None
+
+
+class TelegramConnectInstructionsResponse(BaseModel):
+    bot_username: str | None = None
+    start_command: str = "/start"
+    steps: list[str] = Field(default_factory=list)
+    note: str

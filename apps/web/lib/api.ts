@@ -94,6 +94,21 @@ export type AlertSettings = {
   min_confidence: number;
 };
 
+export type TelegramConnectInstructions = {
+  bot_username: string | null;
+  start_command: string;
+  steps: string[];
+  note: string;
+};
+
+export type TelegramTestResult = {
+  ok: boolean;
+  detail: string;
+  telegram_chat_id: string;
+  telegram_enabled: boolean;
+  provider_message_id: string | null;
+};
+
 export type ConnectTelegramAlertsPayload = {
   telegram_chat_id: string;
   is_active?: boolean;
@@ -337,6 +352,18 @@ const fallbackAlertSettings: AlertSettings = {
   min_confidence: 0.6
 };
 
+const fallbackTelegramConnectInstructions: TelegramConnectInstructions = {
+  bot_username: null,
+  start_command: "/start",
+  steps: [
+    "1. Abre Telegram",
+    "2. Busca el bot configurado para este entorno",
+    "3. Pulsa Start",
+    "4. Pega tu chat ID y vincula tu cuenta"
+  ],
+  note: "Después de vincular el chat puedes enviar una prueba manual desde el dashboard."
+};
+
 type RequestOptions<T> = {
   token?: string | null;
   method?: string;
@@ -420,6 +447,16 @@ export function getMyAlerts(token?: string | null) {
   });
 }
 
+export function getTelegramConnectInstructions(token?: string | null) {
+  if (!token) {
+    return Promise.resolve(fallbackTelegramConnectInstructions);
+  }
+  return requestJson<TelegramConnectInstructions>("/alerts/telegram/connect-instructions", {
+    token,
+    fallback: fallbackTelegramConnectInstructions
+  });
+}
+
 async function requestProxyJson<T>(path: string, body?: unknown, method = "POST"): Promise<T> {
   const response = await fetch(path, {
     method,
@@ -428,10 +465,11 @@ async function requestProxyJson<T>(path: string, body?: unknown, method = "POST"
     },
     body: body ? JSON.stringify(body) : undefined
   });
-  const payload = await response.json();
+  const raw = await response.text();
+  const payload = raw ? JSON.parse(raw) : {};
 
   if (!response.ok) {
-    throw new Error(payload.detail ?? `Request failed for ${path}`);
+    throw new Error(payload.detail ?? payload.message ?? `Request failed for ${path}`);
   }
 
   return payload as T;
@@ -443,4 +481,8 @@ export function connectTelegramAlerts(payload: ConnectTelegramAlertsPayload) {
 
 export function updateAlertPreferences(payload: UpdateAlertPreferencesPayload) {
   return requestProxyJson<AlertSettings>("/api/alerts/preferences", payload);
+}
+
+export function sendTelegramTest() {
+  return requestProxyJson<TelegramTestResult>("/api/alerts/telegram/test");
 }

@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     enable_telegram_alerts: bool = True
     enable_email_alerts: bool = False
     telegram_bot_token: str = ""
+    telegram_bot_username: str = ""
     alert_min_score: float = 7.0
     alert_min_confidence: float = 0.6
     alert_dedupe_window_minutes: int = 5

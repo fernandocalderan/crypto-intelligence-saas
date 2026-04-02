@@ -1,8 +1,16 @@
 from fastapi import APIRouter, Depends
 
-from models.schemas import AlertPreferencesRequest, AlertsMeResponse, TelegramConnectRequest
+from models.schemas import (
+    AlertPreferencesRequest,
+    AlertsMeResponse,
+    TelegramConnectInstructionsResponse,
+    TelegramConnectRequest,
+    TelegramTestResponse,
+)
 from services.alert_engine import (
     get_alert_settings_for_user,
+    get_telegram_connect_instructions_for_user,
+    send_telegram_test_for_user,
     upsert_telegram_subscription,
     update_user_alert_preferences,
 )
@@ -16,6 +24,11 @@ def get_my_alerts(user=Depends(get_current_user)) -> AlertsMeResponse:
     return get_alert_settings_for_user(user)
 
 
+@router.get("/telegram/connect-instructions", response_model=TelegramConnectInstructionsResponse)
+def get_telegram_instructions(user=Depends(get_current_user)) -> TelegramConnectInstructionsResponse:
+    return get_telegram_connect_instructions_for_user(user)
+
+
 @router.post("/telegram/connect", response_model=AlertsMeResponse)
 def connect_telegram_alerts(
     payload: TelegramConnectRequest,
@@ -26,6 +39,11 @@ def connect_telegram_alerts(
         telegram_chat_id=payload.telegram_chat_id,
         is_active=payload.is_active,
     )
+
+
+@router.post("/telegram/test", response_model=TelegramTestResponse)
+def test_telegram_alert(user=Depends(get_current_user)) -> TelegramTestResponse:
+    return send_telegram_test_for_user(user)
 
 
 @router.post("/preferences", response_model=AlertsMeResponse)
