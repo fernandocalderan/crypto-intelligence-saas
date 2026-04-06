@@ -3,23 +3,18 @@ import { Section } from "../section";
 const steps = [
   {
     step: "01",
-    title: "Mercado normalizado + detección",
-    description: "El backend agrega snapshots desde exchanges y detecta setups de confluencia sobre ese contexto."
+    title: "Detecta setups",
+    description: "Normaliza mercado y agrupa confluencias."
   },
   {
     step: "02",
-    title: "Clasificación operativa",
-    description: "Cada setup se clasifica por estado operativo, score, confianza y calidad del dato."
+    title: "Clasifica el setup",
+    description: "Estado, score y calidad del dato."
   },
   {
     step: "03",
-    title: "Alertas inmediatas por Telegram",
-    description: "Los usuarios PRO reciben el setup estructurado por Telegram cuando merece distribución inmediata."
-  },
-  {
-    step: "04",
-    title: "Dashboard con contexto + histórico",
-    description: "El mismo setup queda visible en dashboard con confirmaciones, plan indicativo y bloque de histórico."
+    title: "Telegram + dashboard",
+    description: "Alerta rápida y lectura completa."
   }
 ];
 
@@ -28,15 +23,14 @@ export default function HowItWorksSection() {
     <Section
       id="como-funciona"
       eyebrow="Cómo funciona"
-      title="Cuatro pasos para pasar del mercado al setup legible."
-      description="La experiencia está pensada para entender rápido qué ocurre, por qué importa y qué conviene hacer con esa lectura."
+      title="Tres pasos."
     >
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-3">
         {steps.map((step) => (
-          <article key={step.step} className="surface p-8">
+          <article key={step.step} className="surface p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-moss">{step.step}</p>
-            <h3 className="mt-4 text-2xl font-semibold text-ink">{step.title}</h3>
-            <p className="mt-4 text-base leading-7 text-haze">{step.description}</p>
+            <h3 className="mt-3 text-xl font-semibold text-ink">{step.title}</h3>
+            <p className="mt-3 text-sm leading-6 text-haze">{step.description}</p>
           </article>
         ))}
       </div>

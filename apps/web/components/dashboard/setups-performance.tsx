@@ -5,6 +5,7 @@ import type { SetupPerformanceState, SignalFeed } from "../../lib/api";
 type SetupsPerformanceProps = {
   performanceState: SetupPerformanceState;
   accessPlan: SignalFeed["access_plan"];
+  embedded?: boolean;
 };
 
 const percentFormatter = new Intl.NumberFormat("en-US", {
@@ -26,27 +27,32 @@ function metricCard(label: string, value: string, muted?: boolean) {
   );
 }
 
-export function SetupsPerformance({ performanceState, accessPlan }: SetupsPerformanceProps) {
+export function SetupsPerformance({ performanceState, accessPlan, embedded = false }: SetupsPerformanceProps) {
   const isFreePlan = accessPlan === "free";
   const isProPlus = accessPlan === "pro_plus";
   const { performance } = performanceState;
   const hasData = performance.total_setups > 0;
 
   return (
-    <section className="surface p-6 sm:p-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-3">
-          <span className="eyebrow">Performance</span>
-          <h2 className="section-title">Métricas agregadas del histórico de setups persistidos.</h2>
-          <p className="max-w-3xl text-base leading-7 text-haze">
-            Este bloque resume qué porcentaje de setups llega a objetivos, cuánto tarda en alcanzar TP1 y qué setup
-            types sostienen mejor el tracking premium del producto.
-          </p>
+    <section className={embedded ? "" : "surface p-6 sm:p-8"}>
+      {!embedded ? (
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <span className="eyebrow">Performance</span>
+            <h2 className="section-title">Performance agregada.</h2>
+          </div>
+          <div className="rounded-full border border-white/10 bg-black/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-haze">
+            {isFreePlan ? "Vista teaser" : isProPlus ? "Breakdown completo" : "Métricas básicas"}
+          </div>
         </div>
-        <div className="rounded-full border border-white/10 bg-black/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-haze">
-          {isFreePlan ? "Vista teaser" : isProPlus ? "Breakdown completo" : "Métricas básicas"}
+      ) : (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Performance agregada</p>
+          <span className="rounded-full border border-white/10 bg-black/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-haze">
+            {isFreePlan ? "Vista teaser" : isProPlus ? "Breakdown completo" : "Métricas básicas"}
+          </span>
         </div>
-      </div>
+      )}
 
       {performanceState.errorMessage ? (
         <div className="mt-6 rounded-3xl border border-yellow-300/20 bg-yellow-300/10 px-5 py-4 text-sm text-yellow-100">
@@ -54,7 +60,7 @@ export function SetupsPerformance({ performanceState, accessPlan }: SetupsPerfor
         </div>
       ) : null}
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <div className={`${embedded ? "" : "mt-6"} grid gap-4 md:grid-cols-2 xl:grid-cols-6`}>
         {metricCard("Total setups", isFreePlan ? "Upgrade" : String(performance.total_setups), isFreePlan)}
         {metricCard("Activos", isFreePlan ? "Upgrade" : String(performance.active), isFreePlan)}
         {metricCard("TP1 hit", isFreePlan ? "Upgrade" : `${percentFormatter.format(performance.tp1_hit_pct)}%`, isFreePlan)}
@@ -73,8 +79,7 @@ export function SetupsPerformance({ performanceState, accessPlan }: SetupsPerfor
 
       {!hasData && !isFreePlan ? (
         <div className="mt-6 rounded-3xl border border-white/8 bg-black/10 px-5 py-5 text-sm text-haze">
-          Todavía no hay suficientes setups persistidos para calcular performance agregada. En cuanto el histórico
-          acumule setups ejecutables con lifecycle real, aparecerán aquí.
+          Aún no hay datos suficientes.
         </div>
       ) : null}
 
@@ -105,15 +110,12 @@ export function SetupsPerformance({ performanceState, accessPlan }: SetupsPerfor
         </div>
       ) : null}
 
-      {isFreePlan ? (
+      {isFreePlan && !embedded ? (
         <div className="mt-6 rounded-3xl border border-moss/20 bg-gradient-to-r from-moss/10 via-transparent to-tide/10 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Performance premium</p>
-              <p className="max-w-2xl text-sm leading-7 text-haze">
-                Pro desbloquea métricas básicas del histórico. Pro+ añade el breakdown completo por tipo de setup para
-                evaluar qué confluencias están funcionando mejor.
-              </p>
+              <p className="max-w-2xl text-sm leading-6 text-haze">Pro: métricas básicas. Pro+: breakdown completo.</p>
             </div>
             <Link
               href="/pricing"

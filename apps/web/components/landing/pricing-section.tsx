@@ -7,8 +7,8 @@ export default function PricingSection() {
     <Section
       id="pricing"
       eyebrow="Pricing"
-      title="Pricing alineado con el producto real: teaser, setups completos y Telegram."
-      description="Free sirve para probar el formato. Pro desbloquea el objeto comercial completo. Pro+ mantiene ese acceso y reserva la siguiente capa premium."
+      title="Tres planes. Un producto claro."
+      description="Free prueba. Pro desbloquea. Pro+ amplía."
     >
       <div className="grid gap-5 lg:grid-cols-3">
         {marketingPlans.map((plan) => (

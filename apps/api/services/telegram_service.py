@@ -8,6 +8,8 @@ from config import get_settings
 from services.pro_signal_view import build_pro_signal_view
 
 logger = logging.getLogger(__name__)
+TELEGRAM_TIMEOUT_SECONDS = 10.0
+TELEGRAM_MAX_ATTEMPTS = 2
 
 
 class TelegramServiceError(RuntimeError):
@@ -151,15 +153,30 @@ def validate_telegram_chat_id(value: str | int) -> str:
     return normalized
 
 
+def _sanitize_telegram_text(value: str | None, *, max_chars: int = 240) -> str:
+    normalized = (value or "").strip().replace("\n", " ")
+    if len(normalized) <= max_chars:
+        return normalized
+    return f"{normalized[: max_chars - 3]}..."
+
+
 def _normalize_telegram_failure(description: str | None, status_code: int) -> TelegramServiceError:
     detail = (description or "Telegram API error").strip()
     lowered = detail.lower()
+
+    if status_code == 401 or "unauthorized" in lowered:
+        return TelegramServiceError(
+            detail,
+            user_message="El bot de Telegram no está autorizado en este entorno. Revisa TELEGRAM_BOT_TOKEN.",
+            code="unauthorized_bot_token",
+            status_code=503,
+        )
 
     if "chat not found" in lowered or "bot was blocked" in lowered or "user is deactivated" in lowered:
         return TelegramServiceError(
             detail,
             user_message="Abre Telegram, busca el bot y pulsa Start antes de volver a intentarlo. Si ya lo hiciste, revisa el chat ID.",
-            code="telegram_chat_not_ready",
+            code="bot_not_started",
             status_code=400,
         )
 
@@ -167,7 +184,7 @@ def _normalize_telegram_failure(description: str | None, status_code: int) -> Te
         return TelegramServiceError(
             detail,
             user_message="El chat ID de Telegram no es válido. Revisa el valor y vuelve a intentarlo.",
-            code="telegram_chat_id_invalid",
+            code="invalid_chat_id",
             status_code=400,
         )
 
@@ -175,14 +192,14 @@ def _normalize_telegram_failure(description: str | None, status_code: int) -> Te
         return TelegramServiceError(
             detail,
             user_message="Telegram no respondió correctamente. Vuelve a intentarlo en unos minutos.",
-            code="telegram_remote_error",
+            code="telegram_http_error",
             status_code=502,
         )
 
     return TelegramServiceError(
         detail,
         user_message="No pudimos enviar el mensaje a Telegram. Revisa la configuración del bot y vuelve a intentarlo.",
-        code="telegram_remote_error",
+        code="telegram_http_error",
         status_code=400,
     )
 
@@ -292,7 +309,7 @@ def format_confluence_setup_alert(setup_view: Any, plan: str = "pro") -> str:
     return "\n".join(
         [
             f"{_state_emoji(execution_state, direction)} {headline}",
-            f"{execution_state} · {direction.upper()} · {plan.upper()}",
+            f"SETUP PRO · {execution_state} · {direction.upper()} · {plan.upper()}",
             "",
             summary,
             "",
@@ -322,9 +339,55 @@ def format_confluence_setup_alert(setup_view: Any, plan: str = "pro") -> str:
     )
 
 
-def format_signal_alert_message(signal: Any, asset: dict[str, Any] | None = None, plan: str = "pro") -> str:
+def format_early_signal_alert(signal: Any, asset: dict[str, Any] | None = None, plan: str = "pro") -> str:
     signal_view = build_pro_signal_view(signal, asset, plan=plan)
-    return format_pro_telegram_alert(signal_view, plan=plan)
+    headline = str(_get_value(signal_view, "headline", "Signal"))
+    direction = str(_get_value(signal_view, "direction", "neutral"))
+    summary = str(_get_value(signal_view, "summary", _get_value(signal_view, "thesis_short", "Sin resumen")))
+    signal_type = str(_get_value(signal, "signal_type", _get_value(signal_view, "signal_type", "Signal")))
+    model_score = float(_get_value(signal_view, "model_score", _get_value(signal_view, "score", 0.0)))
+    confidence_pct = float(_get_value(signal_view, "confidence_pct", _get_value(signal_view, "confidence", 0.0)))
+    thesis_short = str(_get_value(signal_view, "thesis_short", _get_value(signal_view, "thesis", "Sin tesis disponible")))
+    key_data = _get_value(signal_view, "key_data", {}) or {}
+    action_plan = _get_value(signal_view, "action_plan", {}) or {}
+    data_quality_warnings = list(_get_value(signal_view, "data_quality_warnings", []))
+
+    warning_lines = [
+        f"{_severity_emoji(_get_value(item, 'severity', 'warning'))} {_get_value(item, 'message', '')}"
+        for item in data_quality_warnings[:2]
+    ] or ["⚠ Requiere confirmación adicional antes de ejecutar."]
+
+    return "\n".join(
+        [
+            f"🟡 {headline}",
+            f"SEÑAL TEMPRANA · {direction.upper()} · {plan.upper()}",
+            "",
+            f"{signal_type}: {summary}",
+            "No es un setup de confluencia. Requiere confirmación adicional.",
+            "",
+            f"Score: {model_score:.1f}/10 | Confianza: {confidence_pct:.1f}%",
+            "",
+            "Tesis:",
+            thesis_short,
+            "",
+            "Plan base:",
+            f"• Bias: {_get_value(action_plan, 'bias', direction)}",
+            f"• Trigger: {_format_plan_level(_get_value(action_plan, 'trigger_level'))}",
+            f"• Invalidación: {_format_plan_level(_get_value(action_plan, 'invalidation_level'))}",
+            "",
+            "Datos clave:",
+            f"• Precio: {_format_currency(_get_value(key_data, 'price'))}",
+            f"• Cambio 24h: {_format_signed_percent(_get_value(key_data, 'change_24h'))}",
+            f"• Volumen 24h: {_format_compact_number(_get_value(key_data, 'volume_24h'))}",
+            "",
+            "Warnings:",
+            *warning_lines,
+        ]
+    )
+
+
+def format_signal_alert_message(signal: Any, asset: dict[str, Any] | None = None, plan: str = "pro") -> str:
+    return format_early_signal_alert(signal, asset, plan=plan)
 
 
 def format_telegram_test_message(*, user_identifier: str, plan: str) -> str:
@@ -346,9 +409,10 @@ def send_telegram_message(chat_id: str | int, text: str) -> dict[str, Any]:
     settings = get_settings()
     token = settings.telegram_bot_token.strip()
     normalized_chat_id = validate_telegram_chat_id(chat_id)
+    token_prefix = token[:6] if token else ""
 
     if not token:
-        logger.warning("Telegram alerts enabled but TELEGRAM_BOT_TOKEN is missing")
+        logger.warning("telegram_send_unavailable reason=missing_bot_token")
         raise TelegramServiceError(
             "Telegram bot token not configured",
             user_message="Telegram no está disponible temporalmente. Falta la configuración del bot.",
@@ -356,46 +420,111 @@ def send_telegram_message(chat_id: str | int, text: str) -> dict[str, Any]:
             status_code=503,
         )
 
-    try:
-        response = httpx.post(
-            _telegram_send_url(token),
-            json={
-                "chat_id": normalized_chat_id,
-                "text": text,
-                "disable_web_page_preview": True,
-            },
-            timeout=10.0,
-        )
-    except httpx.TimeoutException as exc:
-        raise TelegramServiceError(
-            f"Telegram timeout: {exc}",
-            user_message="Telegram tardó demasiado en responder. Vuelve a intentarlo.",
-            code="telegram_timeout",
-            status_code=504,
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise TelegramServiceError(
-            f"Telegram HTTP error: {exc}",
-            user_message="No pudimos contactar con Telegram. Vuelve a intentarlo en unos minutos.",
-            code="telegram_network_error",
-            status_code=502,
-        ) from exc
-
-    try:
-        payload = response.json()
-    except ValueError:
-        payload = {}
-
-    if response.status_code >= 400 or not payload.get("ok", True):
-        description = payload.get("description") if isinstance(payload, dict) else response.text
-        raise _normalize_telegram_failure(str(description), response.status_code)
-
-    result = payload.get("result", {})
-    return {
-        "provider": "telegram",
-        "message_id": str(result.get("message_id")) if result.get("message_id") is not None else None,
-        "payload": payload,
+    url = _telegram_send_url(token)
+    payload_body = {
+        "chat_id": normalized_chat_id,
+        "text": text,
+        "disable_web_page_preview": True,
     }
+
+    last_error: TelegramServiceError | None = None
+    for attempt in range(1, TELEGRAM_MAX_ATTEMPTS + 1):
+        logger.info(
+            "telegram_send_attempt chat_id=%s attempt=%s token_prefix=%s token_length=%s text_length=%s",
+            normalized_chat_id,
+            attempt,
+            token_prefix,
+            len(token),
+            len(text),
+        )
+        try:
+            response = httpx.post(
+                url,
+                json=payload_body,
+                timeout=TELEGRAM_TIMEOUT_SECONDS,
+            )
+        except httpx.TimeoutException as exc:
+            logger.warning(
+                "telegram_send_timeout chat_id=%s attempt=%s error=%s",
+                normalized_chat_id,
+                attempt,
+                _sanitize_telegram_text(str(exc)),
+            )
+            last_error = TelegramServiceError(
+                f"Telegram timeout: {exc}",
+                user_message="Telegram tardó demasiado en responder. Vuelve a intentarlo.",
+                code="timeout",
+                status_code=504,
+            )
+            if attempt < TELEGRAM_MAX_ATTEMPTS:
+                logger.info("telegram_send_retry chat_id=%s reason=timeout next_attempt=%s", normalized_chat_id, attempt + 1)
+                continue
+            raise last_error from exc
+        except httpx.TransportError as exc:
+            logger.warning(
+                "telegram_send_transport_error chat_id=%s attempt=%s error=%s",
+                normalized_chat_id,
+                attempt,
+                _sanitize_telegram_text(str(exc)),
+            )
+            last_error = TelegramServiceError(
+                f"Telegram HTTP transport error: {exc}",
+                user_message="No pudimos contactar con Telegram. Vuelve a intentarlo en unos minutos.",
+                code="telegram_http_error",
+                status_code=502,
+            )
+            if attempt < TELEGRAM_MAX_ATTEMPTS:
+                logger.info(
+                    "telegram_send_retry chat_id=%s reason=transport_error next_attempt=%s",
+                    normalized_chat_id,
+                    attempt + 1,
+                )
+                continue
+            raise last_error from exc
+
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+
+        description = payload.get("description") if isinstance(payload, dict) else response.text
+        logger.info(
+            "telegram_send_response chat_id=%s attempt=%s status_code=%s ok=%s description=%s",
+            normalized_chat_id,
+            attempt,
+            response.status_code,
+            payload.get("ok", True) if isinstance(payload, dict) else response.status_code < 400,
+            _sanitize_telegram_text(str(description)),
+        )
+
+        if response.status_code >= 400 or not payload.get("ok", True):
+            error = _normalize_telegram_failure(str(description), response.status_code)
+            logger.warning(
+                "telegram_send_failed chat_id=%s attempt=%s code=%s status_code=%s detail=%s",
+                normalized_chat_id,
+                attempt,
+                error.code,
+                error.status_code,
+                _sanitize_telegram_text(error.detail),
+            )
+            raise error
+
+        result = payload.get("result", {})
+        return {
+            "provider": "telegram",
+            "message_id": str(result.get("message_id")) if result.get("message_id") is not None else None,
+            "payload": payload,
+        }
+
+    if last_error is not None:
+        raise last_error
+
+    raise TelegramServiceError(
+        "Telegram send failed without classified error",
+        user_message="No pudimos enviar el mensaje a Telegram.",
+        code="telegram_http_error",
+        status_code=502,
+    )
 
 
 def send_telegram_test_message(chat_id: str | int, user_identifier: str, plan: str) -> dict[str, Any]:

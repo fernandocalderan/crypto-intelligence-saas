@@ -38,22 +38,20 @@ function getVisibleSetups(setups: Setup[]) {
 export function SetupsSection({ setupState, accessPlan }: SetupsSectionProps) {
   const isFreePlan = accessPlan === "free";
   const visibleSetups = getVisibleSetups(setupState.setups);
-  const teaserSetups = isFreePlan ? visibleSetups.slice(0, 2) : visibleSetups;
+  const initialLimit = isFreePlan ? 2 : 4;
+  const initialSetups = visibleSetups.slice(0, initialLimit);
+  const overflowSetups = visibleSetups.slice(initialLimit);
 
   return (
-    <section className="surface p-6 sm:p-8">
+    <section className="surface p-7 sm:p-9">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
           <span className="eyebrow">Setups PRO</span>
-          <h2 className="section-title">Confluencias operables con contexto, confirmaciones y plan indicativo.</h2>
-          <p className="max-w-3xl text-base leading-7 text-haze">
-            Esta es la misma capa comercial que hoy alimenta Telegram: setups por activo con estado operativo claro,
-            tesis resumida y plan base. Las señales individuales siguen existiendo debajo, pero aquí se prioriza la
-            confluencia útil.
-          </p>
+          <h2 className="section-title">Decide desde aquí.</h2>
+          <p className="max-w-3xl text-sm leading-6 text-haze">Activo, estado, score y tesis corta.</p>
         </div>
         <div className="rounded-full border border-white/10 bg-black/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-haze">
-          {isFreePlan ? "Vista teaser" : `${visibleSetups.length} setups visibles`}
+          {isFreePlan ? "Vista teaser" : `${initialSetups.length}${overflowSetups.length > 0 ? "+" : ""} setups visibles`}
         </div>
       </div>
 
@@ -63,20 +61,37 @@ export function SetupsSection({ setupState, accessPlan }: SetupsSectionProps) {
         </div>
       ) : null}
 
-      {teaserSetups.length > 0 ? (
+      {initialSetups.length > 0 ? (
         <div className="mt-6 space-y-4">
-          {teaserSetups.map((setup) => (
+          {initialSetups.map((setup) => (
             <SetupCard
               key={`${setup.asset_symbol}-${setup.setup_key}-${setup.generated_at}`}
               setup={setup}
               accessPlan={accessPlan}
             />
           ))}
+
+          {overflowSetups.length > 0 ? (
+            <details className="rounded-[2rem] border border-white/8 bg-black/10">
+              <summary className="cursor-pointer list-none px-6 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-ink">
+                Ver más
+              </summary>
+              <div className="border-t border-white/8 px-6 pb-6 pt-4 space-y-4">
+                {overflowSetups.map((setup) => (
+                  <SetupCard
+                    key={`${setup.asset_symbol}-${setup.setup_key}-${setup.generated_at}-overflow`}
+                    setup={setup}
+                    accessPlan={accessPlan}
+                    compact
+                  />
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
       ) : (
         <div className="mt-6 rounded-3xl border border-white/8 bg-black/10 px-5 py-5 text-sm text-haze">
-          No hay setups de confluencia válidos en este momento. El motor sigue evaluando activos y, mientras tanto, las
-          señales base quedan visibles más abajo.
+          No hay setups válidos ahora.
         </div>
       )}
 
@@ -85,10 +100,7 @@ export function SetupsSection({ setupState, accessPlan }: SetupsSectionProps) {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Upgrade a Pro</p>
-              <p className="max-w-2xl text-sm leading-7 text-haze">
-                El plan Free ve solo teaser. Pro y Pro+ desbloquean confirmaciones completas, plan indicativo, warnings
-                de calidad y el mismo objeto que ya se envía por Telegram.
-              </p>
+              <p className="max-w-2xl text-sm leading-6 text-haze">Desbloquea detalle completo y Telegram.</p>
             </div>
             <Link
               href="/pricing"

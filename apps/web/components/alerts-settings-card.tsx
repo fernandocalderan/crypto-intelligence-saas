@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import {
+  AlertDebugState,
   AlertSettings,
   connectTelegramAlerts,
+  revalidateTelegramDebug,
   sendTelegramTest,
   TelegramConnectInstructions,
   updateAlertPreferences
@@ -15,6 +17,7 @@ import { trackEvent } from "../lib/tracking";
 
 type AlertsSettingsCardProps = {
   initialState: AlertSettings;
+  initialDebugState: AlertDebugState;
   instructions: TelegramConnectInstructions;
   isAuthenticated: boolean;
 };
@@ -36,8 +39,35 @@ function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
   return <p className="rounded-2xl border border-moss/20 bg-moss/10 px-4 py-3 text-sm text-ink">{feedback.message}</p>;
 }
 
+function maskChatId(chatId: string | null) {
+  if (!chatId) {
+    return null;
+  }
+  if (chatId.length <= 4) {
+    return chatId;
+  }
+  return `${chatId.slice(0, 2)}***${chatId.slice(-2)}`;
+}
+
+function formatDiagnosticDate(value?: string | null) {
+  if (!value) {
+    return "Sin registro";
+  }
+  return new Date(value).toLocaleString();
+}
+
+function formatConfiguredConfidence(value: number) {
+  const normalized = value <= 1 ? value : value / 100;
+  return `${normalized.toFixed(2)} (${(normalized * 100).toFixed(0)}%)`;
+}
+
+function formatConfidencePct(value: number) {
+  return `${Number(value).toFixed(0)}%`;
+}
+
 export function AlertsSettingsCard({
   initialState,
+  initialDebugState,
   instructions,
   isAuthenticated
 }: AlertsSettingsCardProps) {
@@ -48,10 +78,12 @@ export function AlertsSettingsCard({
   const [emailEnabled, setEmailEnabled] = useState(initialState.email_enabled);
   const [minScore, setMinScore] = useState(String(initialState.min_score));
   const [minConfidence, setMinConfidence] = useState(String(initialState.min_confidence));
+  const [debugState, setDebugState] = useState(initialDebugState);
   const [connectPanelOpen, setConnectPanelOpen] = useState(!initialState.telegram_configured);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [connectingTelegram, setConnectingTelegram] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [revalidatingDebug, setRevalidatingDebug] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
   const applySettings = (nextSettings: AlertSettings) => {
@@ -61,17 +93,30 @@ export function AlertsSettingsCard({
     setMinScore(String(nextSettings.min_score));
     setMinConfidence(String(nextSettings.min_confidence));
     setTelegramChatId(nextSettings.telegram_chat_id ?? "");
+    setDebugState((current) => ({
+      ...current,
+      plan: nextSettings.plan,
+      can_receive_alerts: nextSettings.can_receive_alerts,
+      alerts_globally_enabled: nextSettings.alerts_globally_enabled,
+      telegram_available: nextSettings.telegram_available,
+      telegram_subscription_active: nextSettings.telegram_enabled,
+      telegram_enabled: nextSettings.telegram_enabled,
+      telegram_chat_id_present: nextSettings.telegram_configured,
+      telegram_chat_id_masked: maskChatId(nextSettings.telegram_chat_id),
+      min_score: nextSettings.min_score,
+      min_confidence: nextSettings.min_confidence,
+      effective_min_score: nextSettings.effective_min_score,
+      effective_min_confidence_pct: nextSettings.effective_min_confidence_pct,
+      setup_min_score: nextSettings.setup_min_score,
+      setup_min_confidence_pct: nextSettings.setup_min_confidence_pct
+    }));
   };
 
   if (!isAuthenticated) {
     return (
       <section className="surface p-6 sm:p-8">
         <span className="eyebrow">Alertas</span>
-        <h2 className="mt-3 text-2xl font-semibold text-ink">Inicia sesión para conectar Telegram y activar alertas push.</h2>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-haze">
-          Las alertas inmediatas se vinculan a tu cuenta. Primero crea sesión y luego conecta Telegram desde este mismo
-          dashboard.
-        </p>
+        <h2 className="mt-3 text-2xl font-semibold text-ink">Inicia sesión para conectar Telegram.</h2>
         <Link
           href="/login"
           className="mt-6 inline-flex rounded-full bg-moss px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-canvas transition hover:bg-[#d2ff9d]"
@@ -86,11 +131,7 @@ export function AlertsSettingsCard({
     return (
       <section className="surface border-moss/20 bg-gradient-to-r from-moss/10 via-transparent to-tide/10 p-6 sm:p-8">
         <span className="eyebrow">Alertas PRO</span>
-        <h2 className="mt-3 text-2xl font-semibold text-ink">Telegram y las alertas push están disponibles para planes Pro.</h2>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-haze">
-          El plan Free sirve para validar el feed. Las alertas inmediatas, el test manual y la conexión Telegram se
-          activan en Pro o Pro+.
-        </p>
+        <h2 className="mt-3 text-2xl font-semibold text-ink">Telegram es solo para Pro.</h2>
         <Link
           href="/pricing"
           className="mt-6 inline-flex rounded-full bg-moss px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-canvas transition hover:bg-[#d2ff9d]"
@@ -104,6 +145,29 @@ export function AlertsSettingsCard({
   const isTelegramReadyForTest = settings.alerts_globally_enabled && settings.telegram_available;
   const canSendTest = Boolean(settings.telegram_configured) && !sendingTest && isTelegramReadyForTest;
   const botReference = instructions.bot_username ?? "el bot configurado para este entorno";
+  const latestSent = debugState.latest_sent;
+
+  async function refreshDebugState(options?: { successMessage?: string }) {
+    setRevalidatingDebug(true);
+
+    try {
+      const nextDebug = await revalidateTelegramDebug();
+      setDebugState(nextDebug);
+      if (options?.successMessage) {
+        setFeedback({ tone: "success", message: options.successMessage });
+      }
+    } catch (refreshError) {
+      setFeedback({
+        tone: "error",
+        message:
+          refreshError instanceof Error
+            ? refreshError.message
+            : "No pudimos revalidar el estado de Telegram en este momento."
+      });
+    } finally {
+      setRevalidatingDebug(false);
+    }
+  }
 
   async function handleConnectTelegram(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,8 +195,8 @@ export function AlertsSettingsCard({
       });
 
       applySettings(nextSettings);
+      await refreshDebugState({ successMessage: "Telegram conectado correctamente." });
       setConnectPanelOpen(false);
-      setFeedback({ tone: "success", message: "Telegram conectado correctamente." });
       router.refresh();
     } catch (submissionError) {
       setFeedback({
@@ -180,9 +244,8 @@ export function AlertsSettingsCard({
       });
 
       applySettings(nextSettings);
-      setFeedback({
-        tone: "success",
-        message: "Preferencias guardadas. Recibirás alertas inmediatas de señales completas con prioridad."
+      await refreshDebugState({
+        successMessage: "Preferencias guardadas. Recibirás alertas inmediatas de señales completas con prioridad."
       });
       router.refresh();
     } catch (submissionError) {
@@ -213,7 +276,7 @@ export function AlertsSettingsCard({
       });
 
       const result = await sendTelegramTest();
-      setFeedback({ tone: "success", message: result.detail || "Mensaje de prueba enviado." });
+      await refreshDebugState({ successMessage: result.detail || "Mensaje de prueba enviado." });
     } catch (submissionError) {
       setFeedback({
         tone: "error",
@@ -232,11 +295,8 @@ export function AlertsSettingsCard({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <span className="eyebrow">Alertas PRO</span>
-          <h2 className="text-2xl font-semibold text-ink">Recibirás alertas inmediatas de señales completas con prioridad.</h2>
-          <p className="max-w-2xl text-base leading-7 text-haze">
-            El scheduler persiste señales nuevas y, si cumplen threshold, dispara el envío por Telegram de forma
-            inmediata. El dashboard sigue disponible como capa pull.
-          </p>
+          <h2 className="text-2xl font-semibold text-ink">Configura Telegram y thresholds.</h2>
+          <p className="text-sm text-haze">Telegram prioriza Setups PRO. Las Señales tempranas usan filtro más estricto y límite de frecuencia.</p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-haze">
           Plan actual: <span className="font-semibold text-ink">{settings.plan}</span>
@@ -245,15 +305,19 @@ export function AlertsSettingsCard({
 
       {!settings.alerts_globally_enabled ? (
         <div className="mt-6 rounded-3xl border border-yellow-300/20 bg-yellow-300/10 px-4 py-3 text-sm text-yellow-100">
-          El sistema de alertas está desactivado por configuración global. Puedes dejar la preferencia guardada y
-          activarlo después por flags.
+          Alertas desactivadas por configuración global.
         </div>
       ) : null}
 
       {!settings.telegram_available ? (
         <div className="mt-4 rounded-3xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-haze">
-          Telegram no disponible temporalmente. Puedes dejar el chat vinculado, pero el envío real y la prueba manual
-          dependen de que el bot esté operativo en este entorno.
+          Telegram no disponible en este entorno.
+        </div>
+      ) : null}
+
+      {!debugState.telegram_subscription_active ? (
+        <div className="mt-4 rounded-3xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-haze">
+          El canal Telegram aún no está activo.
         </div>
       ) : null}
 
@@ -267,12 +331,12 @@ export function AlertsSettingsCard({
               </div>
               <span
                 className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
-                  settings.telegram_configured
+                  debugState.telegram_chat_id_present
                     ? "border border-moss/20 bg-moss/10 text-ink"
                     : "border border-white/10 bg-black/20 text-haze"
                 }`}
               >
-                {settings.telegram_configured ? "Conectado" : "No conectado"}
+                {debugState.telegram_chat_id_present ? "Conectado" : "No conectado"}
               </span>
             </div>
 
@@ -280,20 +344,21 @@ export function AlertsSettingsCard({
               <div className="rounded-3xl border border-white/8 bg-black/10 px-4 py-4 text-sm text-haze">
                 <p className="font-semibold text-ink">Estado</p>
                 <ul className="mt-3 space-y-2 leading-6">
-                  <li>Telegram: {settings.telegram_enabled ? "Activado" : "Desactivado"}</li>
-                  <li>Chat ID: {settings.telegram_chat_id ?? "Sin vincular"}</li>
+                  <li>Telegram: {debugState.telegram_enabled ? "Activado" : "Desactivado"}</li>
+                  <li>Chat ID: {debugState.telegram_chat_id_masked ?? "Sin vincular"}</li>
                   <li>Bot: {botReference}</li>
+                  <li>Bot configurado: {debugState.bot_configured ? "Sí" : "No"}</li>
+                  <li>Scheduler: {debugState.alerts_process_on_scheduler ? "Activo" : "Off"}</li>
                 </ul>
               </div>
 
               <div className="rounded-3xl border border-white/8 bg-black/10 px-4 py-4 text-sm text-haze">
-                <p className="font-semibold text-ink">Cómo funciona</p>
+                <p className="font-semibold text-ink">Pasos</p>
                 <ul className="mt-3 space-y-2 leading-6">
-                  {instructions.steps.map((step) => (
+                  {instructions.steps.slice(0, 3).map((step) => (
                     <li key={step}>{step}</li>
                   ))}
                 </ul>
-                <p className="mt-3 text-xs text-haze">{instructions.note}</p>
               </div>
             </div>
 
@@ -312,6 +377,14 @@ export function AlertsSettingsCard({
                 className="rounded-full border border-white/12 px-5 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-ink transition hover:border-moss/50 hover:text-moss disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {sendingTest ? "Enviando..." : "Enviar prueba"}
+              </button>
+              <button
+                type="button"
+                onClick={() => refreshDebugState({ successMessage: "Estado de Telegram revalidado." })}
+                disabled={revalidatingDebug}
+                className="rounded-full border border-white/12 px-5 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-ink transition hover:border-white/25 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {revalidatingDebug ? "Revalidando..." : "Revalidar Telegram"}
               </button>
             </div>
 
@@ -378,7 +451,7 @@ export function AlertsSettingsCard({
 
               <div className="space-y-2">
                 <label htmlFor="min-confidence" className="text-sm font-medium text-ink">
-                  Min confidence
+                  Min confidence (0-1)
                 </label>
                 <input
                   id="min-confidence"
@@ -403,7 +476,7 @@ export function AlertsSettingsCard({
                 />
                 <span>
                   <span className="block font-semibold text-ink">Activar alertas por Telegram</span>
-                  Cuando haya una señal nueva elegible, el backend la enviará a este chat con prioridad.
+                  Envía alertas a este chat.
                 </span>
               </label>
 
@@ -417,16 +490,16 @@ export function AlertsSettingsCard({
                 />
                 <span>
                   <span className="block font-semibold text-ink">Email fallback</span>
-                  La infraestructura queda preparada, pero el envío puede seguir desactivado por flag en este entorno.
+                  Puede seguir desactivado.
                 </span>
               </label>
             </div>
 
             <div className="mt-5 rounded-3xl border border-white/8 bg-black/10 px-4 py-4 text-sm text-haze">
-              <p className="font-semibold text-ink">Threshold efectivo</p>
+              <p className="font-semibold text-ink">Thresholds</p>
               <ul className="mt-3 space-y-2 leading-6">
-                <li>Score mínimo: {settings.min_score}</li>
-                <li>Confidence mínima: {settings.min_confidence}</li>
+                <li>Configurado: {debugState.min_score} / {formatConfiguredConfidence(debugState.min_confidence)}</li>
+                <li>Push real: {debugState.effective_min_score} / {formatConfidencePct(debugState.effective_min_confidence_pct)}</li>
               </ul>
             </div>
 
@@ -446,23 +519,39 @@ export function AlertsSettingsCard({
 
         <aside className="rounded-[2rem] border border-white/10 bg-black/10 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-haze">Estado actual</p>
-          <h3 className="mt-2 text-xl font-semibold text-ink">Resumen de conexión</h3>
+          <h3 className="mt-2 text-xl font-semibold text-ink">Diagnóstico de entrega</h3>
           <div className="mt-5 space-y-4 text-sm text-haze">
             <div className="rounded-3xl border border-white/8 bg-black/10 px-4 py-4">
               <p className="font-semibold text-ink">Telegram</p>
-              <p className="mt-2">{settings.telegram_configured ? "Conectado" : "No conectado"}</p>
+              <p className="mt-2">{debugState.telegram_chat_id_present ? "Conectado" : "No conectado"}</p>
             </div>
             <div className="rounded-3xl border border-white/8 bg-black/10 px-4 py-4">
               <p className="font-semibold text-ink">Canal prioritario</p>
-              <p className="mt-2">{settings.telegram_enabled ? "Activado" : "Desactivado"}</p>
+              <p className="mt-2">{debugState.telegram_enabled ? "Activado" : "Desactivado"}</p>
             </div>
             <div className="rounded-3xl border border-white/8 bg-black/10 px-4 py-4">
-              <p className="font-semibold text-ink">Prueba manual</p>
-              <p className="mt-2">
-                {canSendTest
-                  ? "Lista para enviar."
-                  : "Conecta tu chat y asegúrate de que Telegram esté disponible para probar la entrega."}
+              <p className="font-semibold text-ink">Último envío exitoso</p>
+              <p className="mt-2">{formatDiagnosticDate(latestSent?.sent_at ?? latestSent?.created_at)}</p>
+              <p className="mt-1 text-xs text-haze">
+                {latestSent?.provider_message_id
+                  ? `Message ID: ${latestSent.provider_message_id}`
+                  : "Sin confirmación de envío todavía."}
               </p>
+            </div>
+            <div className="rounded-3xl border border-white/8 bg-black/10 px-4 py-4">
+              <p className="font-semibold text-ink">Último error</p>
+              <p className="mt-2">{debugState.last_error_code ?? "Sin errores recientes"}</p>
+              <p className="mt-1 text-xs leading-6 text-haze">
+                {debugState.last_error_known ?? "No hay fallo persistido reciente para este usuario."}
+              </p>
+            </div>
+            <div className="rounded-3xl border border-white/8 bg-black/10 px-4 py-4">
+              <p className="font-semibold text-ink">Actividad reciente</p>
+              <ul className="mt-2 space-y-2 leading-6">
+                <li>Deliveries recientes: {debugState.recent_deliveries_count}</li>
+                <li>Señales elegibles recientes: {debugState.recent_eligible_signal_count}</li>
+                <li>Push real: {debugState.effective_min_score} / {formatConfidencePct(debugState.effective_min_confidence_pct)}</li>
+              </ul>
             </div>
           </div>
         </aside>

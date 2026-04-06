@@ -270,6 +270,45 @@ class AlertsMeResponse(BaseModel):
     email_configured: bool = False
     min_score: float
     min_confidence: float
+    effective_min_score: float
+    effective_min_confidence_pct: float
+    setup_min_score: float
+    setup_min_confidence_pct: float
+
+
+class AlertDeliveryDebugEntry(BaseModel):
+    channel: str
+    delivery_status: str
+    provider_message_id: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    created_at: datetime
+    sent_at: datetime | None = None
+
+
+class AlertsDebugResponse(BaseModel):
+    plan: str
+    can_receive_alerts: bool
+    alerts_globally_enabled: bool
+    telegram_available: bool
+    bot_configured: bool
+    telegram_subscription_active: bool
+    telegram_enabled: bool
+    telegram_chat_id_present: bool
+    telegram_chat_id_masked: str | None = None
+    min_score: float
+    min_confidence: float
+    effective_min_score: float
+    effective_min_confidence_pct: float
+    setup_min_score: float
+    setup_min_confidence_pct: float
+    alerts_process_on_scheduler: bool
+    recent_deliveries_count: int
+    recent_eligible_signal_count: int
+    latest_sent: AlertDeliveryDebugEntry | None = None
+    latest_failed: AlertDeliveryDebugEntry | None = None
+    last_error_code: str | None = None
+    last_error_known: str | None = None
 
 
 class TelegramConnectRequest(BaseModel):

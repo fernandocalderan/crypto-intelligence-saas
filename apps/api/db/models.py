@@ -197,6 +197,7 @@ class AlertDeliveryRecord(Base):
     channel: Mapped[str] = mapped_column(String(20), index=True)
     delivery_status: Mapped[str] = mapped_column(String(20), index=True)
     provider_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

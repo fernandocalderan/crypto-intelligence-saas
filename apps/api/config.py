@@ -1,3 +1,4 @@
+import logging
 from functools import lru_cache
 from pathlib import Path
 
@@ -5,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 CONFIG_PATH = Path(__file__).resolve()
+logger = logging.getLogger(__name__)
 
 
 def resolve_env_file() -> Path:
@@ -62,6 +64,10 @@ class Settings(BaseSettings):
     alert_on_individual_signals: bool = False
     min_setup_score: float = 7.5
     min_setup_confidence: float = 70.0
+    early_signal_min_score: float = 7.2
+    early_signal_min_confidence: float = 0.65
+    early_signal_max_per_run: int = 2
+    early_signal_cooldown_hours: int = 8
     setup_require_no_mock_for_executable: bool = True
 
     model_config = SettingsConfigDict(
@@ -88,6 +94,87 @@ class Settings(BaseSettings):
             "oi_divergence": self.enable_oi_divergence_signal,
             "liquidation_cluster": self.enable_liquidation_cluster_signal,
         }
+
+
+def _redact_secret(secret: str) -> dict[str, object]:
+    normalized = secret.strip()
+    return {
+        "present": bool(normalized),
+        "prefix": normalized[:6] if normalized else "",
+        "length": len(normalized),
+    }
+
+
+def build_alert_runtime_snapshot(settings: Settings | None = None) -> dict[str, object]:
+    resolved = settings or get_settings()
+    return {
+        "enable_alerts": resolved.enable_alerts,
+        "enable_telegram_alerts": resolved.enable_telegram_alerts,
+        "enable_email_alerts": resolved.enable_email_alerts,
+        "enable_market_data_scheduler": resolved.enable_market_data_scheduler,
+        "alerts_process_on_scheduler": resolved.alerts_process_on_scheduler,
+        "enable_confluence_engine": resolved.enable_confluence_engine,
+        "alert_on_individual_signals": resolved.alert_on_individual_signals,
+        "alert_min_score": resolved.alert_min_score,
+        "alert_min_confidence": resolved.alert_min_confidence,
+        "alert_dedupe_window_minutes": resolved.alert_dedupe_window_minutes,
+        "alert_max_per_run": resolved.alert_max_per_run,
+        "min_setup_score": resolved.min_setup_score,
+        "min_setup_confidence": resolved.min_setup_confidence,
+        "early_signal_min_score": resolved.early_signal_min_score,
+        "early_signal_min_confidence": resolved.early_signal_min_confidence,
+        "early_signal_max_per_run": resolved.early_signal_max_per_run,
+        "early_signal_cooldown_hours": resolved.early_signal_cooldown_hours,
+        "telegram_bot_token": _redact_secret(resolved.telegram_bot_token),
+    }
+
+
+def validate_alert_runtime_configuration(settings: Settings | None = None) -> list[str]:
+    resolved = settings or get_settings()
+    issues: list[str] = []
+
+    if resolved.enable_alerts and resolved.enable_telegram_alerts and not resolved.telegram_bot_token.strip():
+        issues.append("telegram_enabled_without_token")
+
+    if resolved.alerts_process_on_scheduler and not resolved.enable_market_data_scheduler:
+        issues.append("alerts_on_scheduler_without_market_scheduler")
+
+    if resolved.alerts_process_on_scheduler and not resolved.enable_alerts:
+        issues.append("alerts_process_on_scheduler_but_alerts_disabled")
+
+    if resolved.enable_telegram_alerts and not resolved.enable_alerts:
+        issues.append("telegram_channel_enabled_but_alerts_disabled")
+
+    if resolved.enable_email_alerts and not resolved.enable_alerts:
+        issues.append("email_channel_enabled_but_alerts_disabled")
+
+    if resolved.alert_dedupe_window_minutes <= 0:
+        issues.append("invalid_alert_dedupe_window")
+
+    if resolved.alert_max_per_run <= 0:
+        issues.append("invalid_alert_max_per_run")
+
+    if resolved.early_signal_max_per_run <= 0:
+        issues.append("invalid_early_signal_max_per_run")
+
+    if resolved.early_signal_cooldown_hours < 0:
+        issues.append("invalid_early_signal_cooldown_hours")
+
+    return issues
+
+
+def log_alert_runtime_configuration(settings: Settings | None = None) -> None:
+    resolved = settings or get_settings()
+    snapshot = build_alert_runtime_snapshot(resolved)
+    issues = validate_alert_runtime_configuration(resolved)
+    logger.info("alert_runtime_configuration %s", snapshot)
+
+    if not issues:
+        logger.info("alert_runtime_configuration_valid")
+        return
+
+    for issue in issues:
+        logger.warning("alert_runtime_configuration_invalid reason=%s", issue)
 
 
 @lru_cache

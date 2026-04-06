@@ -45,6 +45,14 @@ SETUP_SCHEMA_INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_setups_asset_symbol ON setups (asset_symbol)",
 ]
 
+ALERT_DELIVERY_SCHEMA_PATCHES = [
+    "ALTER TABLE alert_deliveries ADD COLUMN IF NOT EXISTS error_code VARCHAR(120)",
+]
+
+ALERT_DELIVERY_SCHEMA_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS ix_alert_deliveries_error_code ON alert_deliveries (error_code)",
+]
+
 
 def _patch_signal_schema() -> None:
     if engine.dialect.name != "postgresql":
@@ -138,10 +146,27 @@ def _patch_setup_schema() -> None:
             connection.execute(text(statement))
 
 
+def _patch_alert_delivery_schema() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = inspect(engine)
+    if "alert_deliveries" not in inspector.get_table_names():
+        return
+
+    with engine.begin() as connection:
+        for statement in ALERT_DELIVERY_SCHEMA_PATCHES:
+            connection.execute(text(statement))
+
+        for statement in ALERT_DELIVERY_SCHEMA_INDEXES:
+            connection.execute(text(statement))
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _patch_signal_schema()
     _patch_setup_schema()
+    _patch_alert_delivery_schema()
 
     with SessionLocal() as session:
         existing_symbols = {

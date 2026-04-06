@@ -17,11 +17,11 @@ export const marketingPlans: MarketingPlan[] = [
     price: "0€",
     cadence: "/mes",
     eyebrow: "Teaser",
-    description: "Para probar el feed, entender el formato de Setups PRO y ver cómo se presenta el contexto antes del upgrade.",
+    description: "Prueba el formato.",
     bullets: [
-      "Vista teaser de setups y señales base",
-      "Acceso limitado al dashboard y al histórico visible",
-      "Ideal para validar si el formato encaja con tu operativa"
+      "Teaser de setups",
+      "Dashboard limitado",
+      "Prueba antes del upgrade"
     ],
     cta: "Probar el feed"
   },
@@ -31,11 +31,11 @@ export const marketingPlans: MarketingPlan[] = [
     price: "39€",
     cadence: "/mes",
     eyebrow: "Core",
-    description: "Acceso completo a Setups PRO con estado operativo, confirmaciones, plan indicativo y alertas inmediatas por Telegram.",
+    description: "El producto completo.",
     bullets: [
-      "Setups completos con score, confianza y estado operativo",
-      "Confirmaciones, trigger, invalidación y objetivos indicativos",
-      "Alertas Telegram y acceso al histórico visible de setups"
+      "Setups completos",
+      "Telegram inmediato",
+      "Histórico visible"
     ],
     cta: "Desbloquear setups completos",
     featured: true
@@ -46,11 +46,11 @@ export const marketingPlans: MarketingPlan[] = [
     price: "99€",
     cadence: "/mes",
     eyebrow: "Premium",
-    description: "La misma capa completa de Setups PRO, con espacio reservado para seguimiento premium y futuras capas de performance avanzada.",
+    description: "Capa premium futura.",
     bullets: [
-      "Todo lo incluido en Pro",
-      "Breakdown ampliado y prioridad sobre futuras capas premium",
-      "Preparado para seguimiento operativo más profundo"
+      "Todo lo de Pro",
+      "Breakdown ampliado",
+      "Espacio para seguimiento"
     ],
     cta: "Acceder a alertas Telegram"
   }

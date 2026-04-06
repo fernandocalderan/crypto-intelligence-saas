@@ -69,6 +69,7 @@ API:
 - auth: `http://localhost:8000/auth/login`, `http://localhost:8000/auth/register`, `http://localhost:8000/auth/me`
 - billing: `http://localhost:8000/billing/checkout`, `http://localhost:8000/billing/confirm`
 - alertas: `http://localhost:8000/alerts/me`, `http://localhost:8000/alerts/telegram/connect`, `http://localhost:8000/alerts/telegram/test`, `http://localhost:8000/alerts/telegram/connect-instructions`, `http://localhost:8000/alerts/preferences`
+- debug alertas: `http://localhost:8000/alerts/debug/me`
 
 ## Arranque con Docker
 
@@ -220,11 +221,12 @@ Reglas base:
 
 - solo `pro` y `pro_plus` reciben alertas push
 - thresholds globales por defecto:
-  - `ALERT_MIN_SCORE=7.0`
-  - `ALERT_MIN_CONFIDENCE=0.6`
+  - `ALERT_MIN_SCORE=6.5`
+  - `ALERT_MIN_CONFIDENCE=0.55`
 - thresholds del motor de setups:
-  - `MIN_SETUP_SCORE=7.5`
-  - `MIN_SETUP_CONFIDENCE=70`
+  - `MIN_SETUP_SCORE=6.5`
+  - `MIN_SETUP_CONFIDENCE=55`
+- el dashboard muestra el threshold configurado por el usuario y el threshold efectivo real del push
 - deduplicacion por hash con ventana temporal de `5` minutos
 - por defecto, Telegram ya no envía señales individuales
 - para volver al comportamiento legacy:
@@ -236,9 +238,75 @@ UI actual:
 
 - el dashboard incluye una card de `Alertas PRO`
 - `free` ve upgrade prompt
-- `pro` puede guardar `telegram_chat_id`, activar/desactivar canales y definir thresholds
+- `pro` puede guardar `telegram_chat_id`, activar/desactivar canales, definir thresholds y revalidar Telegram
 - el feed muestra estado operativo, confirmaciones, plan y warnings de calidad
 - `pro_plus` mantiene el mismo detalle y un hook reservado para seguimiento futuro
+
+## Diagnostico de alertas Telegram
+
+El pipeline ahora deja trazabilidad suficiente para saber por que una alerta no salio.
+
+Qué revisar:
+
+1. `GET /alerts/debug/me`
+2. logs del backend en cada tick del scheduler
+3. estado de `alert_deliveries`
+4. card `Alertas PRO` en `/dashboard`
+
+El endpoint debug devuelve, sin secretos:
+
+- plan actual
+- si el usuario puede recibir alertas
+- si Telegram esta disponible en runtime
+- si el bot esta configurado
+- si la suscripcion Telegram esta activa
+- si hay `telegram_chat_id`
+- thresholds efectivos
+- ultimo envio `sent`
+- ultimo envio `failed`
+- ultimo error conocido
+- numero de deliveries recientes
+- numero de señales recientes elegibles
+
+Skip reasons y causas visibles en logs:
+
+- `skipped_plan`
+- `skipped_no_chat_id`
+- `skipped_channel_disabled`
+- `skipped_threshold`
+- `skipped_duplicate`
+
+Errores Telegram que ahora se distinguen:
+
+- `bot_not_started`
+- `invalid_chat_id`
+- `unauthorized_bot_token`
+- `telegram_http_error`
+- `timeout`
+
+Causas tipicas de fallo:
+
+- `Bad Request: chat not found`
+  Suele significar que el usuario no pulso `Start` en el bot o que el `chat_id` guardado no corresponde a ese bot.
+- `Telegram bot token not configured`
+  El canal estaba habilitado en algun momento, pero el entorno no tenia `TELEGRAM_BOT_TOKEN` cargado.
+- `skipped_threshold`
+  Hay señales nuevas, pero no superan el umbral efectivo del usuario/canal.
+- `skipped_duplicate`
+  Ya existe `alert_delivery` para la misma señal, usuario y canal.
+
+Checklist corto de validacion:
+
+1. comprobar `ENABLE_ALERTS=true`
+2. comprobar `ENABLE_TELEGRAM_ALERTS=true`
+3. comprobar `TELEGRAM_BOT_TOKEN` presente
+4. abrir `/alerts/debug/me`
+5. verificar que el plan no sea `free`
+6. verificar `telegram_subscription_active=true`
+7. verificar `telegram_chat_id_present=true`
+8. lanzar `POST /alerts/telegram/test`
+9. revisar `last_error_code` y `last_error_known` si falla
+10. revisar logs del scheduler para `alerts_candidates_count` y `alert_deliveries_*`
 
 ## Gating por plan
 

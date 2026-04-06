@@ -85,7 +85,7 @@ export function PricingCard({
 
   return (
     <article
-      className={`surface flex h-full flex-col gap-6 p-8 ${
+      className={`surface flex h-full flex-col gap-5 p-7 ${
         featured ? "border-moss/40 bg-gradient-to-b from-moss/10 to-slate/80 shadow-glow" : ""
       }`}
     >
@@ -105,12 +105,12 @@ export function PricingCard({
             <span className="text-base font-medium text-haze">{plan.cadence}</span>
           </p>
         </div>
-        <p className="text-base leading-7 text-haze">{plan.description}</p>
+        <p className="text-sm leading-6 text-haze">{plan.description}</p>
       </div>
 
-      <ul className="space-y-3 text-sm text-haze">
+      <ul className="space-y-2 text-sm text-haze">
         {plan.bullets.map((bullet) => (
-          <li key={bullet} className="rounded-2xl border border-white/8 bg-black/10 px-4 py-3">
+          <li key={bullet} className="rounded-2xl border border-white/8 bg-black/10 px-4 py-2.5">
             {bullet}
           </li>
         ))}

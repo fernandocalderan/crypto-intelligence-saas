@@ -493,12 +493,13 @@ Reglas de negocio implementadas:
 - solo `pro` y `pro_plus` reciben alertas
 - `free` no recibe push
 - thresholds globales por defecto:
-  - `ALERT_MIN_SCORE=7.0`
-  - `ALERT_MIN_CONFIDENCE=0.6`
+  - `ALERT_MIN_SCORE=6.5`
+  - `ALERT_MIN_CONFIDENCE=0.55`
 - thresholds del motor de setups:
-  - `MIN_SETUP_SCORE=7.5`
-  - `MIN_SETUP_CONFIDENCE=70`
-- `0.6` de confianza se interpreta como `60%`
+  - `MIN_SETUP_SCORE=6.5`
+  - `MIN_SETUP_CONFIDENCE=55`
+- `0.55` de confianza se interpreta como `55%`
+- el threshold efectivo de push para setups es `max(subscription.*, MIN_SETUP_*)`
 - no se reenviara la misma senal al mismo usuario y mismo canal
 - la deduplicacion de envio descansa en `alert_deliveries` con unique por:
   - `signal_id`
@@ -531,6 +532,32 @@ Tolerancia a fallos:
 - si falta `TELEGRAM_BOT_TOKEN`, se loguea warning y el scheduler continua
 - si falla un envio, se registra `failed` y se sigue con el resto
 - si un usuario no tiene el canal configurado, no se intenta enviar
+- `telegram_service.py` ahora diferencia y clasifica:
+  - `bot_not_started`
+  - `invalid_chat_id`
+  - `unauthorized_bot_token`
+  - `telegram_http_error`
+  - `timeout`
+- hay 1 retry rapido solo para timeout o fallo transitorio de red
+
+Observabilidad actual:
+
+- al arrancar, el API loguea snapshot de runtime de alertas con flags efectivos y token saneado
+- cada tick del scheduler deja:
+  - `scheduler_tick_started`
+  - `snapshots_persisted_count`
+  - `new_signals_persisted_count`
+  - `alerts_candidates_count`
+  - `alert_deliveries_created_count`
+  - `alert_deliveries_sent_count`
+  - `alert_deliveries_failed_count`
+  - `alert_skip_reasons`
+- cada descarte en dispatch queda trazado con razones tipo:
+  - `skipped_plan`
+  - `skipped_no_chat_id`
+  - `skipped_channel_disabled`
+  - `skipped_threshold`
+  - `skipped_duplicate`
 
 ## 7. Detectores de senales
 
@@ -783,6 +810,14 @@ Comportamiento:
   - muestra upgrade prompt para `free`
   - permite a `pro` y `pro_plus` configurar Telegram y thresholds
   - refleja disponibilidad real del sistema segun flags y token
+  - muestra diagnostico de entrega:
+    - ultimo envio exitoso
+    - ultimo fallo
+    - ultimo `error_code`
+    - thresholds efectivos
+    - recuento de deliveries recientes
+    - numero de señales elegibles recientes
+  - incluye accion `Revalidar Telegram` contra `GET /alerts/debug/me`
 
 ## 10. Configuracion y variables de entorno
 
@@ -848,6 +883,10 @@ Matices importantes:
 - `SIGNAL_ENGINE_USE_MOCK_DATA` existe en config y en `.env.example`, pero el runtime actual no la usa realmente
 - `REDIS_URL` existe, pero no hay servicio Redis en `docker-compose.yml` ni funcionalidad activa que dependa hoy de Redis
 - `ENABLE_EMAIL_ALERTS` puede activarse, pero el canal email seguira siendo stub si no se implementa un proveedor real
+- combinaciones invalidas de flags de alertas se loguean al arrancar, por ejemplo:
+  - Telegram habilitado sin token
+  - alert processing on scheduler sin scheduler de market data
+  - `ALERT_MAX_PER_RUN <= 0`
 
 ## 11. Desarrollo local y contenedores
 

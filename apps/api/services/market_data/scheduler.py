@@ -17,8 +17,15 @@ _scheduler: BackgroundScheduler | None = None
 
 def run_market_data_job() -> None:
     try:
+        settings = get_settings()
+        logger.info(
+            "scheduler_tick_started enable_market_data_scheduler=%s alerts_process_on_scheduler=%s enable_alerts=%s",
+            settings.enable_market_data_scheduler,
+            settings.alerts_process_on_scheduler,
+            settings.enable_alerts,
+        )
         snapshots = ingest_market_snapshots()
-        logger.info("Market data job completed with %s snapshots", len(snapshots))
+        logger.info("snapshots_persisted_count=%s", len(snapshots))
         if not snapshots:
             return
 
@@ -51,13 +58,13 @@ def run_market_data_job() -> None:
                 logger.info("No new signals persisted for this scheduler run")
             else:
                 logger.info("Signal pipeline persisted %s new signals", len(new_signals))
+            logger.info("new_signals_persisted_count=%s", len(new_signals))
 
             setup_views = build_setup_views(detected_setups, snapshots, plan="pro") if detected_setups else []
             new_setups = create_setups_from_views(setup_views, session) if setup_views else []
             if new_setups:
                 logger.info("Setup pipeline persisted %s new executable setups", len(new_setups))
 
-            settings = get_settings()
             if settings.alerts_process_on_scheduler and new_signals:
                 alert_result = process_alert_pipeline(
                     session,
@@ -66,11 +73,27 @@ def run_market_data_job() -> None:
                     market_snapshots=snapshots,
                 )
                 logger.info(
-                    "Alert pipeline result sent=%s failed=%s skipped=%s",
-                    alert_result["sent"],
-                    alert_result["failed"],
-                    alert_result["skipped"],
+                    "alerts_candidates_count=%s",
+                    alert_result.get("candidates", 0),
                 )
+                logger.info(
+                    "alert_deliveries_created_count=%s",
+                    alert_result.get("alert_deliveries_created_count", alert_result.get("deliveries_created", 0)),
+                )
+                logger.info(
+                    "alert_deliveries_sent_count=%s",
+                    alert_result["sent"],
+                )
+                logger.info(
+                    "alert_deliveries_failed_count=%s",
+                    alert_result["failed"],
+                )
+                logger.info("alert_deliveries_skipped_count=%s", alert_result["skipped"])
+                logger.info("alert_skip_reasons=%s", alert_result.get("skip_reasons", {}))
+            elif not settings.alerts_process_on_scheduler:
+                logger.info("scheduler_alert_processing_skipped reason=ALERTS_PROCESS_ON_SCHEDULER_false")
+            else:
+                logger.info("scheduler_alert_processing_skipped reason=no_new_signals")
     except Exception as exc:
         logger.warning("Market data job failed: %s", exc)
 

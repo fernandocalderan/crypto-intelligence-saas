@@ -244,6 +244,45 @@ export type AlertSettings = {
   email_configured: boolean;
   min_score: number;
   min_confidence: number;
+  effective_min_score: number;
+  effective_min_confidence_pct: number;
+  setup_min_score: number;
+  setup_min_confidence_pct: number;
+};
+
+export type AlertDeliveryDebugEntry = {
+  channel: string;
+  delivery_status: string;
+  provider_message_id: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  sent_at: string | null;
+};
+
+export type AlertDebugState = {
+  plan: "free" | "pro" | "pro_plus";
+  can_receive_alerts: boolean;
+  alerts_globally_enabled: boolean;
+  telegram_available: boolean;
+  bot_configured: boolean;
+  telegram_subscription_active: boolean;
+  telegram_enabled: boolean;
+  telegram_chat_id_present: boolean;
+  telegram_chat_id_masked: string | null;
+  min_score: number;
+  min_confidence: number;
+  effective_min_score: number;
+  effective_min_confidence_pct: number;
+  setup_min_score: number;
+  setup_min_confidence_pct: number;
+  alerts_process_on_scheduler: boolean;
+  recent_deliveries_count: number;
+  recent_eligible_signal_count: number;
+  latest_sent: AlertDeliveryDebugEntry | null;
+  latest_failed: AlertDeliveryDebugEntry | null;
+  last_error_code: string | null;
+  last_error_known: string | null;
 };
 
 export type TelegramConnectInstructions = {
@@ -736,8 +775,37 @@ const fallbackAlertSettings: AlertSettings = {
   telegram_configured: false,
   email: null,
   email_configured: false,
-  min_score: 7,
-  min_confidence: 0.6
+  min_score: 6.5,
+  min_confidence: 0.55,
+  effective_min_score: 6.5,
+  effective_min_confidence_pct: 55,
+  setup_min_score: 6.5,
+  setup_min_confidence_pct: 55
+};
+
+const fallbackAlertDebug: AlertDebugState = {
+  plan: "free",
+  can_receive_alerts: false,
+  alerts_globally_enabled: true,
+  telegram_available: false,
+  bot_configured: false,
+  telegram_subscription_active: false,
+  telegram_enabled: false,
+  telegram_chat_id_present: false,
+  telegram_chat_id_masked: null,
+  min_score: 6.5,
+  min_confidence: 0.55,
+  effective_min_score: 6.5,
+  effective_min_confidence_pct: 55,
+  setup_min_score: 6.5,
+  setup_min_confidence_pct: 55,
+  alerts_process_on_scheduler: true,
+  recent_deliveries_count: 0,
+  recent_eligible_signal_count: 0,
+  latest_sent: null,
+  latest_failed: null,
+  last_error_code: null,
+  last_error_known: null
 };
 
 const fallbackTelegramConnectInstructions: TelegramConnectInstructions = {
@@ -936,6 +1004,16 @@ export function getMyAlerts(token?: string | null) {
   });
 }
 
+export function getMyAlertsDebug(token?: string | null) {
+  if (!token) {
+    return Promise.resolve(fallbackAlertDebug);
+  }
+  return requestJson<AlertDebugState>("/alerts/debug/me", {
+    token,
+    fallback: fallbackAlertDebug
+  });
+}
+
 export function getTelegramConnectInstructions(token?: string | null) {
   if (!token) {
     return Promise.resolve(fallbackTelegramConnectInstructions);
@@ -974,4 +1052,8 @@ export function updateAlertPreferences(payload: UpdateAlertPreferencesPayload) {
 
 export function sendTelegramTest() {
   return requestProxyJson<TelegramTestResult>("/api/alerts/telegram/test");
+}
+
+export function revalidateTelegramDebug() {
+  return requestProxyJson<AlertDebugState>("/api/alerts/debug/me", undefined, "GET");
 }

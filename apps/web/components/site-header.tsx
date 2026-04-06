@@ -17,7 +17,7 @@ export function SiteHeader() {
         </div>
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-haze">Crypto Intelligence</p>
-          <p className="text-sm text-ink">Setups PRO con contexto operativo.</p>
+          <p className="text-sm text-ink">Setups PRO.</p>
         </div>
       </Link>
       <nav className="flex flex-wrap items-center gap-2">

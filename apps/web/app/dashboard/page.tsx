@@ -1,16 +1,15 @@
 import { AlertsSettingsCard } from "../../components/alerts-settings-card";
+import { BaseSignalsSection } from "../../components/dashboard/base-signals-section";
 import { SetupsHistory } from "../../components/dashboard/setups-history";
-import { SetupsPerformance } from "../../components/dashboard/setups-performance";
 import { SetupsSection } from "../../components/dashboard/setups-section";
 import { LogoutButton } from "../../components/logout-button";
-import { SignalCard } from "../../components/signal-card";
 import { StatCard } from "../../components/stat-card";
-import { UpgradeBanner } from "../../components/upgrade-banner";
 import {
   confirmCheckout,
   getAssets,
   getMarketSnapshots,
   getMyAlerts,
+  getMyAlertsDebug,
   getSignalSetups,
   getSetupsPerformance,
   getSetupsHistory,
@@ -72,7 +71,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   const dashboardPlan = user?.plan ?? "free";
-  const [assets, signalFeed, setupState, setupsHistory, setupsPerformance, marketSnapshots, myAlerts, telegramInstructions] = await Promise.all([
+  const [assets, signalFeed, setupState, setupsHistory, setupsPerformance, marketSnapshots, myAlerts, alertsDebug, telegramInstructions] = await Promise.all([
     getAssets(token),
     getSignalFeed(token),
     getSignalSetups(token, dashboardPlan),
@@ -80,6 +79,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     getSetupsPerformance(token, dashboardPlan),
     getMarketSnapshots(token),
     getMyAlerts(token),
+    getMyAlertsDebug(token),
     getTelegramConnectInstructions(token)
   ]);
 
@@ -88,7 +88,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     ? signalFeed.signals.reduce((sum, signal) => sum + signal.score, 0) / signalFeed.signals.length
     : 0;
   const hiddenSignals = Math.max(signalFeed.total_available - signalFeed.visible_count, 0);
-  const isFreePlan = accessPlan === "free";
   const lockedPreviewCount = hiddenSignals > 0 ? Math.min(hiddenSignals, 2) : 0;
   const alertState = user
     ? {
@@ -103,23 +102,40 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
           <span className="eyebrow">Dashboard</span>
-          <h1 className="section-title">Panel de señales, snapshots y acceso por plan.</h1>
-          <p className="max-w-2xl text-base leading-7 text-haze">
+          <h1 className="section-title">Pantalla de decisiones para Setups PRO.</h1>
+          <p className="max-w-2xl text-sm leading-6 text-haze">
             {user
-              ? `Sesión activa para ${user.email}. Plan actual: ${user.plan}.`
-              : "Estás viendo el modo Free. Regístrate para guardar sesión y activar checkout cuando quieras."}
+              ? `${user.email} · ${user.plan}.`
+              : "Modo Free. Vista teaser."}
           </p>
         </div>
         {user ? <LogoutButton /> : null}
       </section>
 
       {checkoutMessage ? (
-        <section className="rounded-3xl border border-moss/20 bg-moss/10 px-5 py-4 text-sm text-ink">{checkoutMessage}</section>
+        <section className="rounded-3xl border border-moss/20 bg-moss/10 px-5 py-4 text-sm text-ink">Checkout confirmado.</section>
       ) : null}
 
       {checkoutError ? (
-        <section className="rounded-3xl border border-red-300/20 bg-red-300/10 px-5 py-4 text-sm text-red-100">{checkoutError}</section>
+        <section className="rounded-3xl border border-red-300/20 bg-red-300/10 px-5 py-4 text-sm text-red-100">No se pudo confirmar el checkout.</section>
       ) : null}
+
+      <SetupsSection setupState={setupState} accessPlan={accessPlan} />
+
+      <AlertsSettingsCard
+        initialState={alertState}
+        initialDebugState={alertsDebug}
+        instructions={telegramInstructions}
+        isAuthenticated={Boolean(user)}
+      />
+
+      <SetupsHistory historyState={setupsHistory} performanceState={setupsPerformance} accessPlan={accessPlan} />
+
+      <BaseSignalsSection
+        signals={signalFeed.signals}
+        accessPlan={accessPlan}
+        lockedPreviewCount={lockedPreviewCount}
+      />
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Tracked assets" value={String(assets.length)} accent="moss" />
@@ -128,25 +144,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <StatCard label="Average score" value={`${percentFormatter.format(avgScore)}/10`} accent="moss" />
       </section>
 
-      {isFreePlan && hiddenSignals > 0 ? <UpgradeBanner hiddenSignals={hiddenSignals} /> : null}
-
-      <SetupsSection setupState={setupState} accessPlan={accessPlan} />
-
-      <SetupsHistory historyState={setupsHistory} accessPlan={accessPlan} />
-
-      <SetupsPerformance performanceState={setupsPerformance} accessPlan={accessPlan} />
-
-      <AlertsSettingsCard
-        initialState={alertState}
-        instructions={telegramInstructions}
-        isAuthenticated={Boolean(user)}
-      />
-
       <section className="surface p-6 sm:p-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-haze">Market data</p>
-            <h2 className="mt-2 text-2xl font-semibold text-ink">Normalized snapshots</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-ink">Snapshots</h2>
           </div>
         </div>
         <div className="space-y-4">
@@ -194,14 +196,20 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="surface p-6 sm:p-8">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-haze">Assets</p>
-              <h2 className="mt-2 text-2xl font-semibold text-ink">Universe snapshot</h2>
+      <details className="surface p-6 sm:p-8">
+        <summary className="cursor-pointer list-none">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-3">
+              <span className="eyebrow">Universe snapshot</span>
+              <h2 className="section-title">Activos y mercado.</h2>
+            </div>
+            <div className="rounded-full border border-white/10 bg-black/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ink">
+              Abrir
             </div>
           </div>
+        </summary>
+
+        <div className="mt-6 border-t border-white/8 pt-6">
           <div className="space-y-4">
             {assets.map((asset) => (
               <div
@@ -231,24 +239,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             ))}
           </div>
         </div>
-
-        <div className="surface p-6 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-haze">Señales base</p>
-          <h2 className="mt-2 text-2xl font-semibold text-ink">Lecturas individuales del engine</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-haze">
-            Este bloque mantiene visibles las señales unitarias del motor. Sirven como capa técnica de inspección y
-            como respaldo cuando no hay setups de confluencia válidos.
-          </p>
-          <div className="mt-6 space-y-4">
-            {signalFeed.signals.map((signal) => (
-              <SignalCard key={signal.id} signal={signal} accessPlan={accessPlan} />
-            ))}
-            {Array.from({ length: lockedPreviewCount }).map((_, index) => (
-              <SignalCard key={`locked-${index}`} locked />
-            ))}
-          </div>
-        </div>
-      </section>
+      </details>
     </div>
   );
 }

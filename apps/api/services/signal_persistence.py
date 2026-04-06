@@ -178,6 +178,13 @@ def persist_signals(
             select(SignalRecord.signal_hash).where(SignalRecord.signal_hash.in_(signal_hashes))
         ).all()
     )
+    duplicate_count = sum(1 for item in mapped_signals if item["signal_hash"] in existing_hashes)
+    logger.info(
+        "signal_persistence_summary detected=%s existing_hashes=%s duplicates=%s",
+        len(detected_signals),
+        len(existing_hashes),
+        duplicate_count,
+    )
 
     new_records: list[SignalRecord] = []
     for payload in mapped_signals:
@@ -215,7 +222,11 @@ def persist_signals(
         for record in new_records:
             db.refresh(record)
 
-    logger.info("Persisted %s new signals", len(new_records))
+    logger.info(
+        "signal_persistence_completed persisted=%s deduped=%s",
+        len(new_records),
+        duplicate_count,
+    )
     return new_records
 
 

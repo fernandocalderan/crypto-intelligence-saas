@@ -167,7 +167,8 @@ def test_telegram_formatter_contains_core_signal_fields() -> None:
 
     assert "BTC" in message
     assert "Volume Spike" in message
+    assert "SEÑAL TEMPRANA" in message
+    assert "No es un setup de confluencia" in message
     assert "Score: 8.1/10" in message
-    assert "Estado:" in message
-    assert "Plan:" in message
-    assert "Riesgo / calidad del dato:" in message
+    assert "Plan base:" in message
+    assert "Warnings:" in message

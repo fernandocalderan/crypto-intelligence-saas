@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import get_settings
+from config import get_settings, log_alert_runtime_configuration
 from db.init_db import init_db
 from routes.alerts import router as alerts_router
 from routes.auth import router as auth_router
@@ -48,6 +48,8 @@ app.include_router(events_router)
 
 @app.on_event("startup")
 def on_startup() -> None:
+    log_alert_runtime_configuration(settings)
+
     try:
         init_db()
     except Exception as exc:

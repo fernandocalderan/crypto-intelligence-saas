@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends
 
 from models.schemas import (
     AlertPreferencesRequest,
+    AlertsDebugResponse,
     AlertsMeResponse,
     TelegramConnectInstructionsResponse,
     TelegramConnectRequest,
     TelegramTestResponse,
 )
 from services.alert_engine import (
+    get_alert_debug_for_user,
     get_alert_settings_for_user,
     get_telegram_connect_instructions_for_user,
     send_telegram_test_for_user,
@@ -22,6 +24,11 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 @router.get("/me", response_model=AlertsMeResponse)
 def get_my_alerts(user=Depends(get_current_user)) -> AlertsMeResponse:
     return get_alert_settings_for_user(user)
+
+
+@router.get("/debug/me", response_model=AlertsDebugResponse)
+def get_my_alerts_debug(user=Depends(get_current_user)) -> AlertsDebugResponse:
+    return get_alert_debug_for_user(user)
 
 
 @router.get("/telegram/connect-instructions", response_model=TelegramConnectInstructionsResponse)

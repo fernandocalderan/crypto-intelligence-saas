@@ -5,39 +5,36 @@ import { CTAButton } from "../cta-button";
 const heroVariants = [
   {
     label: "Variante A",
-    headline: "Setups PRO crypto con contexto. No señales sueltas.",
-    subheadline:
-      "Confluencia, estado operativo, confirmaciones y plan indicativo para operadores que quieren criterio táctico, no ruido."
+    headline: "Setups PRO con contexto.",
+    subheadline: "Telegram y dashboard para trading táctico."
   },
   {
     label: "Variante B",
     headline: "Menos ruido. Más setups operables.",
-    subheadline:
-      "Plataforma de Setups PRO para trading táctico y swing corto, con alertas inmediatas por Telegram y dashboard con contexto completo."
+    subheadline: "Setups para 12h–72h, con Telegram y dashboard."
   },
   {
     label: "Variante C",
-    headline: "Detecta setups operables. No persigas señales vacías.",
-    subheadline:
-      "Crypto Intelligence prioriza setups con estado operativo, confirmaciones y warnings explícitos para decidir más rápido sin vender automatización."
+    headline: "Detecta setups. No señales sueltas.",
+    subheadline: "Estado operativo, plan indicativo y warnings."
   }
 ] as const;
 
 const activeHero = heroVariants[1];
 
 const trustStrip = [
-  "Setups PRO con confluencia",
-  "Estado operativo + plan indicativo",
-  "Warnings de calidad del dato",
-  "Alertas inmediatas por Telegram",
-  "Dashboard con setups activos e histórico"
+  "Confluencia",
+  "Estado operativo",
+  "Plan indicativo",
+  "Telegram",
+  "Histórico"
 ];
 
 const productGuards = [
-  "No es trading automático",
-  "No es copy trading",
-  "No está pensado para scalping agresivo",
-  "No sustituye tu criterio operativo"
+  "No auto-trading",
+  "No copy trading",
+  "No scalping",
+  "No sustituye criterio"
 ];
 
 export default function HeroSection() {
@@ -45,11 +42,9 @@ export default function HeroSection() {
     <section className="space-y-6">
       <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
         <div className="space-y-6">
-          <div className="space-y-3">
+          <div className="space-y-2">
             <span className="eyebrow">Setups PRO</span>
-            <p className="max-w-2xl text-sm font-medium uppercase tracking-[0.16em] text-haze">
-              Plataforma de setups crypto accionables para trading táctico y swing corto
-            </p>
+            <p className="text-sm font-medium uppercase tracking-[0.16em] text-haze">Trading táctico. No señales sueltas.</p>
           </div>
 
           <h1 className="max-w-5xl text-5xl font-semibold tracking-tight text-ink sm:text-6xl lg:text-7xl">
@@ -57,11 +52,6 @@ export default function HeroSection() {
           </h1>
 
           <p className="max-w-3xl text-lg leading-8 text-haze sm:text-xl">{activeHero.subheadline}</p>
-
-          <p className="max-w-3xl text-base leading-7 text-haze">
-            Crypto Intelligence detecta setups, los clasifica por estado operativo, los distribuye por Telegram y los
-            mantiene visibles en dashboard. No ejecuta operaciones ni promete resultados automáticos.
-          </p>
 
           <div className="flex flex-wrap gap-4">
             <CTAButton
@@ -89,17 +79,17 @@ export default function HeroSection() {
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-haze">Crypto Intelligence</p>
-                <p className="mt-2 text-lg font-medium text-ink">Trading táctico con setups priorizados, no con alerts vacías.</p>
+                <p className="mt-2 text-lg font-medium text-ink">Setups claros para decidir rápido.</p>
               </div>
             </div>
 
             <div className="rounded-3xl border border-moss/20 bg-moss/10 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-moss">Lo que sí recibes</p>
-              <ul className="mt-4 space-y-3 text-sm leading-7 text-ink">
-                <li>Setup por activo con dirección, score y confianza.</li>
-                <li>Confirmaciones y estado operativo claros.</li>
-                <li>Trigger, invalidación y TP indicativos cuando aplica.</li>
-                <li>Warnings explícitos si el dato no está fully validated.</li>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-moss">Recibes</p>
+              <ul className="mt-4 space-y-2 text-sm leading-6 text-ink">
+                <li>Activo, dirección y score.</li>
+                <li>Estado operativo.</li>
+                <li>Niveles indicativos.</li>
+                <li>Warnings si el dato flojea.</li>
               </ul>
             </div>
 
